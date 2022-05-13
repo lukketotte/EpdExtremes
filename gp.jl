@@ -1,5 +1,6 @@
 using LinearAlgebra, Distributions, Plots, CSV, DataFrames
 using Random
+
 function spatialGrid(nloc::Int)
     s = range(0,1,length=Integer(√nloc))
     s = vec(collect(Iterators.product(s,s)))

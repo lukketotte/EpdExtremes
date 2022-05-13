@@ -1,5 +1,5 @@
 using LinearAlgebra, SpecialFunctions,  QuadGK, Cubature, Distributions, Plots, KernelDensity
-include("alphaStable.jl")
+include("./Distributions/alphaStable.jl")
 using .AlphaStableDistribution
 
 # Conditional MEPD
