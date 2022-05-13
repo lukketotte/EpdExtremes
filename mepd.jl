@@ -2,7 +2,7 @@ using Distributed, SharedArrays
 @everywhere using LinearAlgebra, SpecialFunctions,  QuadGK, Cubature, Distributions
 using Plots, StatsPlots, DataFrames, CSV
 
-@everywhere g(x::Float64, p::Real) = exp(-x^p/2) / (π * gamma(1+1/p) * 2^(1/p))
+@everywhere g(x::Float64, p::Real) = exp(-abs(x)^p/2) / (π * gamma(1+1/p) * 2^(1/p))
 @everywhere f(y::Float64, x::Float64, p::Real) = (y-x^2 + 1.e-20)^(-1/2) * g(y, p)
 @everywhere depd(x::Float64, p::Real) = quadgk(y -> f(y, x, p), x^2, Inf)[1]
 @everywhere pepd(x::Float64, p::Real) = 1/2 + quadgk(y -> depd(y, p), 0, x)[1]
@@ -12,10 +12,6 @@ function dmvl(x::Real, y::Real, ρ::Real)
     a = √(2*(x^2 - 2*ρ*x*y + y^2)/(1-ρ^2))
     1/(π*√(1-ρ^2)) * K(a)
 end
-
-dmvl(1, 0.8, 0.2)
-C(2*1., 2*0.8, 0.5, 0.2)
-
 
 @everywhere function qrange(q::Real, p::Real)
     if p == 1
@@ -78,22 +74,12 @@ end
 @everywhere C1(x::Float64, p::Real, ρ::Real, q::Real) = quadgk(y -> C(y, x, p, ρ), -Inf, q)[1]
 @everywhere C2(p::Real, ρ::Real, q::Real) = quadgk(y -> C1(y, p, ρ, q), -Inf, q; rtol=1e-12)[1]
 
-u = plt_dat[49, :u]
-x = range(245.9, 750, length = 100)
-x[findall(pepd.(x, 1/4) .> u)[1]]
 
-u, p = 0.955, 1/4
-a = qepd(plt_dat[49, :u], 1/4)
-# val,_ = hcubature(x -> C(x[1], x[2], 1, 0.9), [-1000, -1000], [a, a], reltol=1e-12)
-val = C2(1/4, 0.9, 302)
-2 - log(val)/log(u)
-
-u[19]
 #### Fig 6 of Dependence Measures for Extreme Value Analyses ####
 ρ = [0., 0.3, 0.6, 0.9]
-# ρ = [0.9]
-#u = range(0.9, 0.999, length = 15)
-u = [range(0.9, 0.98, length = 10); range(0.99, 1, length = 20)]
+ρ = [0.9]
+u = [range(0.9, 0.98, length = 5); range(0.99, 1, length = 6)]
+#u = [range(0.9, 0.98, length = 10); range(0.99, 1, length = 20)]
 p = [1/4, 1]
 
 plt_dat = DataFrame(rho = repeat(ρ, inner = length(u)) |> x -> repeat(x, inner = length(p)),
