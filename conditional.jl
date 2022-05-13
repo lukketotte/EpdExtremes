@@ -1,6 +1,11 @@
 using LinearAlgebra, SpecialFunctions,  QuadGK, Cubature, Distributions, Plots, KernelDensity
 include("./Distributions/alphaStable.jl")
+include("./Distributions/mepd.jl")
 using .AlphaStableDistribution
+using .MultivariateEpd
+
+# generate from multviaraite EPD example
+repd(10, MvEpd(0.4, diagm([1.1, 0.2, 0.9])))
 
 # Conditional MEPD
 ## Normal scale mixture
