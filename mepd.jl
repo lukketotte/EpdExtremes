@@ -1,5 +1,5 @@
 using Distributed, SharedArrays
-@everywhere using LinearAlgebra, SpecialFunctions,  QuadGK, Cubature, Distributions
+@everywhere using LinearAlgebra, SpecialFunctions,  QuadGK, Cubature, Distributions, Roots
 using Plots, StatsPlots, DataFrames, CSV
 
 @everywhere g(x::Float64, p::Real) = exp(-abs(x)^p/2) / (π * gamma(1+1/p) * 2^(1/p))
@@ -7,6 +7,7 @@ using Plots, StatsPlots, DataFrames, CSV
 @everywhere depd(x::Float64, p::Real) = quadgk(y -> f(y, x, p), x^2, Inf)[1]
 @everywhere pepd(x::Float64, p::Real) = 1/2 + quadgk(y -> depd(y, p), 0, x)[1]
 
+## ignore this for now ##
 K(x::Float64) = quadgk(t -> 0.5 * exp(-t-x^2/t)/t, 0, Inf)[1]
 function dmvl(x::Real, y::Real, ρ::Real)
     a = √(2*(x^2 - 2*ρ*x*y + y^2)/(1-ρ^2))
@@ -65,6 +66,14 @@ end
     x = qrange(quant, p)
     res = pepd.(x, p) .> quant
     x[findall(res .== 1)[1]]
+end
+
+##
+
+# quantile function using roots
+function qepd(q::Real, p::Real; x0::Real = 1)
+    f(x) = pepd(x, p) - q
+    find_zero(f, x0, Order16())
 end
 
 
