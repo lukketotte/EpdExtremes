@@ -1,4 +1,4 @@
-using LinearAlgebra, SpecialFunctions,  QuadGK, Cubature, Distributions, Plots, KernelDensity
+using LinearAlgebra, SpecialFunctions,  QuadGK, Cubature, Distributions, Plots, KernelDensity, Optim
 include("./Distributions/alphaStable.jl")
 include("./Distributions/mepd.jl")
 using .AlphaStableDistribution
@@ -6,6 +6,46 @@ using .MultivariateEpd
 
 # generate from multviaraite EPD example
 repd(10, MvEpd(0.4, diagm([1.1, 0.2, 0.9])))
+
+function h(x::Real, p::Real, D::Int)
+    γ = 2^(1-1/p)*cos(π*p/2)
+    δ = γ *tan(π*p/2)
+    C = 2^(1+D/2*(1-1/p)) * gamma(1+D/2) / gamma(1+D/(2*p))
+    C*x^(D-3)*pdf(AlphaStable(p, 1., γ, δ), x^(-2))
+end
+
+quadgk(r -> h(r, 0.5, 1), 0, Inf)
+
+p = 0.7
+γ = 2^(1-1/p)*cos(π*p/2)
+δ = γ *tan(π*p/2)
+pdf(AlphaStable(p, 1., γ, δ), 1)
+
+function marginalEpd(x::Real, p::Real)
+    quadgk(r -> pdf(Normal(), x/r) * h(r, p, 1), 0, Inf)[1]
+end
+
+function marginalEpd(p::AbstractVector{<:Real})
+    quadgk(r -> pdf(Normal(), 0.5/r) * h(r, p[1], 1), 0, Inf)[1]
+end
+
+optimize(marginalEpd, [0.5], BFGS())
+
+
+
+marginalEpd(1.1, 0.5)
+
+AlphaStable(p, 1., γ, δ)
+p = 0.9
+D = 5
+
+pdf(AlphaStable(p, 1., γ, δ), 1.5)
+
+h(1, 0.9, 5)
+x = range(0.01, 10, length = 30)
+
+plot(x, h.(x, 0.5, 5))
+plot(x, h.(x, 0.85, 5))
 
 # Conditional MEPD
 ## Normal scale mixture

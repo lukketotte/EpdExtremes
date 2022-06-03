@@ -13,7 +13,7 @@ function dmvl(x::Real, y::Real, ρ::Real)
     a = √(2*(x^2 - 2*ρ*x*y + y^2)/(1-ρ^2))
     1/(π*√(1-ρ^2)) * K(a)
 end
-
+"""
 @everywhere function qrange(q::Real, p::Real)
     if p == 1
         q <= 0.95 ? range(0, 2, length =  1000) : range(1., 4, length =  2000)
@@ -56,18 +56,11 @@ end
 
 @everywhere function qepd(quant::Float64, p::Real)
     quant < 1 && quant >= 0.5 || throw(DomainError("quant must be between 0.5, 1"))
-    """if quant < 0.5
-        x = range(-4, 0, length = 500)
-    elseif quant < 0.95
-        x = range(0, p <= 1/2 ? 6 : 3, length = 1000)
-    else
-        x = range(p <= 1/2 ? 5 : 1, p <= 1/2 ? 20 : 5, length = 2000)
-    end"""
     x = qrange(quant, p)
     res = pepd.(x, p) .> quant
     x[findall(res .== 1)[1]]
 end
-
+"""
 ##
 
 # quantile function using roots
