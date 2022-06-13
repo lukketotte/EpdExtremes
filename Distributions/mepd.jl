@@ -56,17 +56,22 @@ length(d::GenericMvEpd) = d.dim
 params(d::GenericMvEpd) = (d.p, d.dim, d.μ, d.Σ)
 sqmahal(d::GenericMvEpd, x::AbstractVector{<:Real}) = invquad(d.Σ, x - d.μ)
 
-function mvepd_const(d::AbstractMvEpd)
+"""function mvepd_const(d::AbstractMvEpd)
     H = convert(eltype(d), pi^(-d.dim/2))
     H * d.dim*gamma(d.dim/2) / (gamma(1+d.dim/(2*d.p)) * 2^(1+d.dim/(2*d.p)))
+end"""
+
+function mvepd_const(d::AbstractMvEpd)
+    H = convert(eltype(d), pi^(-d.dim/2))
+    log(H) + log(d.dim) + loggamma(d.dim/2) - loggamma(1+d.dim/(2*d.p)) - (1+d.dim/(2*d.p))*log(2)
 end
 
-function pdf(d::AbstractMvEpd, x::AbstractVector{T}) where T<:Real
+function logpdf(d::AbstractMvEpd, x::AbstractVector{T}) where T<:Real
     k = mvepd_const(d)
-    k*det(d.Σ)^(-0.5)*exp(-0.5*sqmahal(d, x))
+    mvepd_const(d) -0.5 * logdet(d.Σ) -0.5*sqmahal(d, x)^d.p
 end
 
-logpdf(d::AbstractMvEpd, x::AbstractVector{<:Real}) = log(pdf(d, x))
+pdf(d::AbstractMvEpd, x::AbstractVector{<:Real}) = exp(logpdf(d, x))
 
 function runifsphere(n::Int, d::Int)
     d >= 2 || throw(DomainError("dim must be >= 2"))
@@ -82,7 +87,7 @@ function repd(n::Int, d::GenericMvEpd)
     res = zeros(n,dim)
     for i ∈ 1:n
         R = rand(Gamma(dim/(2*p), 1/2)).^(1/(2*p))
-        res[i,:] = μ + R*Σ*runifsphere(1, dim)
+        res[i,:] = μ + R*Σ*runifsphere(1, dim)'
     end
     res
 end

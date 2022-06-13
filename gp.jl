@@ -11,8 +11,7 @@ function spatialGrid(nloc::Int)
     locs
 end
 
-
-ρ(s₁::AbstractVector{<:Real}, s₂::AbstractVector{<:Real}, λ::Real = 0.1) = exp(-sqrt((s₁-s₂)'*(s₁-s₂))/λ)
+ρ(s₁::AbstractVector{<:Real}, s₂::AbstractVector{<:Real}, λ::Real = 0.1) = exp(-norm(s₁-s₂)/λ)
 
 function buildCovMat(grid::Array{<:Real, 2}, λ::Real = 0.1)
     n = size(grid,1)
