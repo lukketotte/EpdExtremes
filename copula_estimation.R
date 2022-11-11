@@ -86,26 +86,6 @@ copula_powExp_nocens <- function(dat, coord, init_val, ncores = 1, hessian = FAL
 	return(z)		
 }
 
-# generate data
-fcor <- function(h, param){
-  return(exp(-(h / param[1])^param[2]))
-}
-
-n_sites <- 10
-set.seed(123); coord <- matrix(runif(2 * n_sites), ncol = 2)
-param <- c(1.5, 1.5)
-
-dists <- rbind(as.vector(matrix(coord[, 1], nrow = n_sites, ncol = n_sites) - matrix(coord[, 1], nrow = n_sites, ncol = n_sites, byrow = TRUE)),
-               as.vector(matrix(coord[, 2], nrow = n_sites, ncol = n_sites) - matrix(coord[, 2], nrow = n_sites, ncol = n_sites, byrow = TRUE)))
-D <- matrix(sqrt(dists[1,]^2 + dists[2,]^2), nrow = n_sites, ncol = n_sites)
-Sigmab <- fcor(D, param)
-set.seed(321)
-dat <- rC(n = 10, Sigma = Sigmab, empirMar = FALSE)
-
-# estimate parameters
-copula_powExp_nocens(dat = dat, coord = coord, init_val = c(1, 1), ncores = 5, hessian = FALSE, method = "Nelder-Mead")
-#
-
 
 
 
@@ -115,8 +95,8 @@ copula_powExp_nocens(dat = dat, coord = coord, init_val = c(1, 1), ncores = 5, h
 #############################################
 # censored powered exponential with p = 0.5
 #############################################
-# have not tested 2022-11-10
-copula_powExp_cens <- function(dat_U, coord, thresh, init_val, ncores = 1, hessian = FALSE, optim = TRUE, method = "Nelder-Mead"){
+
+copula_powExp_cens <- function(dat_U, coord, thres, init_val, ncores = 1, hessian = FALSE, optim = TRUE, method = "Nelder-Mead"){
 
   ### censor data below the threshold
 	dat_U_cens <- dat_U
@@ -128,35 +108,35 @@ copula_powExp_cens <- function(dat_U, coord, thresh, init_val, ncores = 1, hessi
 	n_sites <- n_sites[!na_obs]
 	
 	n_obs <- nrow(dat_U_cens)
-	n_sites <- ncol(dat_U_cens)
+	n_site <- ncol(dat_U_cens)
 	
 	
-	Iexc <- apply(dat_U_cens > thres, 1, which)
-	I1 <- lapply(Iexc, length) == n_stats # no censoring
-	I2 <- lapply(Iexc, length) > 0 & lapply(Iexc, length) < n_stats # partial censoring
+	Iexc <- apply(dat_U_cens > thres, 1, which) # indices of exceedances
+	I1 <- lapply(Iexc, length) == n_sites # no censoring
+	I2 <- lapply(Iexc, length) > 0 & lapply(Iexc, length) < n_sites # partial censoring
 	I3 <- lapply(Iexc, length) == 0 # fully censored
 	
-	Inexc <- unique(apply(dat_U_cens <= thres, 1, which)[I3])
-	Inexc_len <- unlist(lapply(Inexc, length))
+	Inexc <- unique(apply(dat_U_cens <= thres, 1, which)[I3]) # unique compositions of fully censored obs
+	Inexc_len <- unlist(lapply(Inexc, length)) # lengths of unique compositions of fully censored obs
 	same_vec <- function(vec1, vec2){
 		if(length(vec1) != length(vec2)){
 			return(FALSE)
 		} else{
-			return(!any(!(vec1 %in% vec2)))
+			return(!any(!(vec1 %in% vec2))) # check if all elements in vec1 are also in vec2, basically if they are the same
 		}
 	}
-	compute_Inexc_nb_i <- function(i){
+	compute_Inexc_nb_i <- function(i){ # indices of unique fully cesored obs. can be multiple if there are partially missing obs
 	  return( sum(unlist(lapply(apply(dat_U_cens <= thres, 1, which)[I3], same_vec, vec2 = Inexc[[i]]))) )
 	}
 	
-	cl <- makeCluster(ncores, type = "SOCK")
+	cl <- parallel::makeCluster(ncores, type = "SOCK")
 	Inexc_nb <- unlist(parallel::parLapply(cl, 1:length(Inexc), compute_Inexc_nb_i))	
-  stopCluster(cl)
+  parallel::stopCluster(cl)
 	
-	dims_c <- sort(unique(n_stats[I3]))
+	dims_c <- sort(unique(n_sites[I3])) # dimensions of fully censored obs. only one number for a complete data set
 	nb_dims_c <- c()
 	for(i in 1:length(dims_c)){
-	  nb_dims_c[i] <- sum(n_stats[I3] == dims_c[i])
+	  nb_dims_c[i] <- sum(n_sites[I3] == dims_c[i])
 	}
 	nfc <- sum(I3) # number of fully censored obs
 	inds <- I1 | I2 # indices for parallel computing of exceedance contributions (non-exceedances are treated separately)...
@@ -164,11 +144,11 @@ copula_powExp_cens <- function(dat_U, coord, thresh, init_val, ncores = 1, hessi
 	#### model for W
 	# correlation functions
 	fcor <- function(h, param){
-	  return(exp(-(h / param[1])^param[2]))
+	  return(exp(-(h / exp(param[1]))^param[2]))
 	}
 	#conditions on the parameters of the correlation function (I need this such that the nllik function returns Inf if the conditions are not met)
 	cond_cor <- function(param){
-	  return(param[2] > 0 & param[2] < 2 & param[1] > 0)
+	  return(param[2] > 0 & param[2] < 2)
 	}
 	
 	### negative censored log-likelihood
@@ -188,9 +168,9 @@ copula_powExp_cens <- function(dat_U, coord, thresh, init_val, ncores = 1, hessi
     if(is(tr, "try-error")){return(10^10)}
 		
     #transform data dat_U_cens to RW scale using qG
-		xc <- matrix(nrow = n_obs, ncol = n_stat)
-		xc[which(dat_U_cens > thres)] <- unlist(parallel::parLapply(cl, dat_U_cens[which(dat_U_cens > thres)], qG1, par = param))
-		xthres <- qG1(thres, par = param)
+		xc <- matrix(nrow = n_obs, ncol = n_site)
+		xc[which(dat_U_cens > thres)] <- unlist(parallel::parLapply(cl, dat_U_cens[which(dat_U_cens > thres)], qG1))
+		xthres <- qG1(thres)
 		xc[which(dat_U_cens == thres)] <- xthres
 		
 		#fix random seed (and save the current random seed to restore it at the end)
@@ -211,20 +191,21 @@ copula_powExp_cens <- function(dat_U, coord, thresh, init_val, ncores = 1, hessi
 			#sum the contributions for the different cases
 			contrib1 <- contrib2 <- 0
 			if (sum(I1[inds][ind_block]) > 0){ #no censoring
-				contrib1 <- sum(dC(xc[inds, ][ind_block, ][I1[inds][ind_block], ], Sigma = Sigmab, par = exp(a), log = TRUE, RWscale = TRUE))
+				contrib1 <- sum(dC(xc[inds, ][ind_block, ][I1[inds][ind_block], ], Sigma = Sigmab, log = TRUE, RWscale = TRUE))
 			}
 			if (sum(I2[inds][ind_block]) > 0){ #partial censoring
-				contrib2 <- sum(dCI(as.list(data.frame(t(xc[inds, ][ind_block, ])))[I2[inds][ind_block]], I = Iexc[inds][ind_block][I2[inds][ind_block]], Sigma = Sigmab, par = exp(a), log = TRUE, RWscale = TRUE))
+				contrib2 <- sum(dCI(as.list(data.frame(t(xc[inds, ][ind_block, ])))[I2[inds][ind_block]], I = Iexc[inds][ind_block][I2[inds][ind_block]], 
+				                    Sigma = Sigmab, log = TRUE, RWscale = TRUE))
 			}	
 			return(-(contrib1 + contrib2))
 		}
 	
 		nllik_res <- sum(unlist(parallel::parLapply(cl, 1:ncores, nllik_block)))
-
+		
 		#fully censored obs
 		compute_contrib3 <- function(i){
 			set.seed(123456)
-			return( Inexc_nb[i] * pC(rep(xthres, Inexc_len[i]), Sigma = Sigmab[Inexc[[i]], Inexc[[i]]], par = exp(a), log = TRUE, RWscale = TRUE) )
+			return( Inexc_nb[i] * pC(rep(xthres, Inexc_len[i]), Sigma = Sigmab[Inexc[[i]], Inexc[[i]]], d = n_site, log = TRUE, RWscale = TRUE) )
 		}
 		contribs3 <- unlist(parallel::parLapply(cl, 1:length(Inexc), compute_contrib3))
 		contrib3 <- sum(contribs3)
@@ -243,14 +224,14 @@ copula_powExp_cens <- function(dat_U, coord, thresh, init_val, ncores = 1, hessi
 		# 	return(nllik(a=all_par[1:2],b=all_par[-c(1:2)]))
 		# }
 
-		cl <- makeCluster(ncores, type = "SOCK")
-		clusterExport(cl, ls(envir = .GlobalEnv))
-		clusterEvalQ(cl, library(mvtnorm))
+		cl <- parallel::makeCluster(ncores, type = "SOCK")
+		parallel::clusterExport(cl, ls(envir = .GlobalEnv))
+		parallel::clusterEvalQ(cl, library(mvtnorm))
 
 		# opt <- optim(init_val2,nllik2,hessian=hessian,method=method,control=list(...))
-		opt <- optim(init_val, nllik, hessian = hessian, method = method, control = list(...))
+		opt <- optim(init_val, nllik, hessian = hessian, method = method) #, control = list(...))
 	
-		stopCluster(cl)
+		parallel::stopCluster(cl)
 	
 		#results
 		mle <- c()
