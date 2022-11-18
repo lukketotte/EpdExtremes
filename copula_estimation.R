@@ -1,20 +1,20 @@
 #############################################
 # uncensored powered exponential with p = 0.5
 #############################################
-copula_powExp_nocens <- function(dat, coord, init_val, ncores = 1, hessian = FALSE, optim = TRUE, method = "Nelder-Mead"){
+copula_powExp_nocens <- function(dat_U, coord, init_val, ncores = 1, hessian = FALSE, optim = TRUE, method = "Nelder-Mead"){
 
-  n_sites <- apply(!is.na(dat), 1, sum)
+  n_sites <- apply(!is.na(dat_U), 1, sum)
 	na_obs <- n_sites <= 1
-	dat <- dat[!na_obs, ]
+	dat_U <- dat_U[!na_obs, ]
 	n_sites <- n_sites[!na_obs]
 	
-	n_obs <- nrow(dat)
-	n_sites <- ncol(dat)
+	n_obs <- nrow(dat_U)
+	n_sites <- ncol(dat_U)
   
   #### model for W
 	# correlation functions
 	fcor <- function(h, param){
-	  return(exp(-(h / param[1])^param[2]))
+	  return(exp(-(h / exp(param[1]))^param[2]))
 	}
 	#conditions on the parameters of the correlation function (I need this such that the nllik function returns Inf if the conditions are not met)
 	cond_cor <- function(param){
@@ -49,7 +49,7 @@ copula_powExp_nocens <- function(dat, coord, init_val, ncores = 1, hessian = FAL
 			}
 			  
 		  #transform data datUc to RW scale using qG
-			x <- matrix(qG1(c(dat[ind_block, ])), ncol = ncol(dat[ind_block, ]))
+			x <- matrix(qG1(c(dat_U[ind_block, ])), ncol = ncol(dat_U[ind_block, ]))
 	
 			contrib <- sum(dC(x, Sigma = Sigmab, log = TRUE, RWscale = TRUE))
 			
@@ -278,37 +278,37 @@ copula_powExp_cens <- function(dat_U, coord, thres, init_val, ncores = 1, hessia
 
 
 
-distance_fun <- function(lambda, nu, coord = coord, n_sites = n_sites){
-  
-  covarMat = matrix(0, n_sites, n_sites)
-  
-  for(k in 1:n_sites){
-    for(l in 1:n_sites){
-      
-      if(k == l){
-        covarMat[k, l] <- 2 * (sqrt(sum(coord[k, ]^2)) / lambda)^nu
-        } else{
-          var1 = sqrt(sum(coord[k, ]^2))
-          var2 = sqrt(sum(coord[l, ]^2))
-          covars = sqrt(sum((coord[k, ] - coord[l, ])^2))
-          
-          covarMat[k, l] = lambda^(-nu) * (var1^nu + var2^nu - covars^nu)
-        }
-    }
-  }
-  return(covarMat)
-}
-
-corrMatrixFun = function(data, lambda, nu){
-
-  numOfCat = length(data)
-  corrMatrix = matrix(NA, n_sites, n_sites)
-  for(i in 1:numOfCat){
-    for(j in 1:numOfCat){
-      d = abs(data[i] - data[j]) # compute distances
-      corr = exp(- (d / lambda)^nu) # exponential similarity
-      corrMatrix[i, j] = corr
-    }
-  }
-  return(corrMatrix)
-}
+# distance_fun <- function(lambda, nu, coord = coord, n_sites = n_sites){
+#   
+#   covarMat = matrix(0, n_sites, n_sites)
+#   
+#   for(k in 1:n_sites){
+#     for(l in 1:n_sites){
+#       
+#       if(k == l){
+#         covarMat[k, l] <- 2 * (sqrt(sum(coord[k, ]^2)) / lambda)^nu
+#         } else{
+#           var1 = sqrt(sum(coord[k, ]^2))
+#           var2 = sqrt(sum(coord[l, ]^2))
+#           covars = sqrt(sum((coord[k, ] - coord[l, ])^2))
+#           
+#           covarMat[k, l] = lambda^(-nu) * (var1^nu + var2^nu - covars^nu)
+#         }
+#     }
+#   }
+#   return(covarMat)
+# }
+# 
+# corrMatrixFun = function(data, lambda, nu){
+# 
+#   numOfCat = length(data)
+#   corrMatrix = matrix(NA, n_sites, n_sites)
+#   for(i in 1:numOfCat){
+#     for(j in 1:numOfCat){
+#       d = abs(data[i] - data[j]) # compute distances
+#       corr = exp(- (d / lambda)^nu) # exponential similarity
+#       corrMatrix[i, j] = corr
+#     }
+#   }
+#   return(corrMatrix)
+# }
