@@ -2,19 +2,19 @@ library(mvtnorm)
 # generalized gamma distribution:
 # https://en.wikipedia.org/wiki/Generalized_gamma_distribution
 # a = sqrt(8), p = 2, d = n+1
-dF <- function(r, n, log = FALSE){
-  K = 2^((3 * n + 1) / 2) * gamma((n + 1) / 2)
+dF <- function(r, m, log = FALSE){
+  K = 2^((3 * m + 1) / 2) * gamma((m + 1) / 2)
   if(log){
-    return(n * log(r) - r^2/8 - log(K))
+    return(m * log(r) - r^2/8 - log(K))
   } else {
-    return(r^n * exp(-r^2/8) / K)
+    return(r^m * exp(-r^2/8) / K)
   }
 }
 
-pF = function(r, n, log = FALSE){
+pF = function(r, m, log = FALSE){
   a = sqrt(8)
   p = 2
-  d = n + 1
+  d = m + 1
   if(log){
     return(log(pgamma(r^2, d/p, (1/a)^2)))
   } else {
@@ -22,8 +22,8 @@ pF = function(r, n, log = FALSE){
   }
 }
 
-qF = function(p, n, log = FALSE){
-  alpha = (n + 1) / 2
+qF = function(p, m, log = FALSE){
+  alpha = (m + 1) / 2
   if(log){
     return(0.5 * log(8) + log(qgamma(p, alpha, 1)) / 2)
   } else {
@@ -31,8 +31,8 @@ qF = function(p, n, log = FALSE){
   }
 }
 
-rF <- function(n, d){
-  return( qF(runif(n), d) )
+rF <- function(n, m){
+  return( qF(runif(n), m) )
 }
 
 #####################################
@@ -46,15 +46,15 @@ pG1 <- function(x, log = FALSE){
   }
   n <- nrow(xmat)
   D <- ncol(xmat)
-  fun <- function(p, x, n){
-    return( pnorm(sign(x) * exp(log(abs(x)) - qF(p, n, TRUE))) )
+  fun <- function(p, x, D){
+    return( pnorm(sign(x) * exp(log(abs(x)) - qF(p, D, TRUE))) )
   }
   val <- matrix(nrow = n, ncol = D)
   for (i in 1:n){
     for(j in 1:D){
       xi <- xmat[i, j]
       if(!is.na(xi)){
-        val[i, j] <- integrate(fun, lower = 0, upper = 1, x = xi, n = n, rel.tol = 10^(-3), stop.on.error = FALSE)$value
+        val[i, j] <- integrate(fun, lower = 0, upper = 1, x = xi, D = D, rel.tol = 10^(-3), stop.on.error = FALSE)$value
       }
     }
   }
@@ -68,7 +68,7 @@ pG1 <- function(x, log = FALSE){
   }
 }
 
-qG1 <- function(p, log = FALSE){ ### if p is a vector, output is a vector; if p is a matrix, output is a matrix.
+qG1 <- function(p, dims, log = FALSE){ ### if p is a vector, output is a vector; if p is a matrix, output is a matrix.
   pmat <- p
   if(!is.matrix(p)){
     pmat <- matrix(p, nrow = 1)
@@ -111,8 +111,8 @@ dG1 <- function(x, log = FALSE){ ### if x is a vector, output is a vector; if x 
   } 
   n <- nrow(xmat)
   D <- ncol(xmat)
-  fun <- function(p, x, n){
-    log_qF <- qF(p, n, TRUE)
+  fun <- function(p, x, D){
+    log_qF <- qF(p, D, TRUE)
     return( exp(dnorm(sign(x) * exp(log(abs(x)) - log_qF), log = TRUE) - log_qF) )
   }
   val <- matrix(nrow = n, ncol = D)
@@ -120,7 +120,7 @@ dG1 <- function(x, log = FALSE){ ### if x is a vector, output is a vector; if x 
     for(j in 1:D){
       xi <- xmat[i, j]
       if(!is.na(xi)){
-        val[i, j] <- integrate(fun, lower = 0, upper = 1, x = xi, n = n, rel.tol = 10^(-3), stop.on.error = FALSE)$value
+        val[i, j] <- integrate(fun, lower = 0, upper = 1, x = xi, D = D, rel.tol = 10^(-3), stop.on.error = FALSE)$value
       }
     }
   }
@@ -135,8 +135,8 @@ dG1 <- function(x, log = FALSE){ ### if x is a vector, output is a vector; if x 
 }
 
 #Random generator from marginal distribution G1
-rG1 <- function(n, d){
-  R <- rF(n, d)
+rG1 <- function(n, m){
+  R <- rF(n, m)
   W <- rnorm(n)
   X <- R * W
   return(X)
@@ -147,17 +147,17 @@ rG1 <- function(n, d){
 ## Multivariate mixture distriubtion ##
 #######################################
 
-pG <- function(x, Sigma, d, log = FALSE){ ### x is an nxD matrix; if x is a vector, it is interpreted as a single D-variate vector (not D independent univariate random variables)
+pG <- function(x, Sigma, m, log = FALSE){ ### x is an nxD matrix; if x is a vector, it is interpreted as a single D-variate vector (not D independent univariate random variables)
   if(!is.matrix(x)){
     x <- matrix(x, nrow = 1)
   }
   pGi <- function(xi){
     ind_nna <- !is.na(xi)
-    fun <- function(p, d){
+    fun <- function(p, m){
       X <- matrix(xi[ind_nna], ncol = sum(ind_nna), nrow = length(p), byrow = TRUE)
-      return( apply(matrix(sign(X) * exp(log(abs(X)) - qF(p, d, TRUE)), ncol = sum(ind_nna)), 1, function(x) mvtnorm::pmvnorm(upper = x, sigma = Sigma[ind_nna, ind_nna])[1]) )
+      return( apply(matrix(sign(X) * exp(log(abs(X)) - qF(p, m, TRUE)), ncol = sum(ind_nna)), 1, function(x) mvtnorm::pmvnorm(upper = x, sigma = Sigma[ind_nna, ind_nna])[1]) )
     }
-    val <- integrate(fun, lower = 0, upper = 1, d, rel.tol = 10^(-3), stop.on.error = FALSE)$value
+    val <- integrate(fun, lower = 0, upper = 1, m, rel.tol = 10^(-3), stop.on.error = FALSE)$value
     return(val)
   }
   val <- apply(x, 1, pGi)
@@ -168,18 +168,18 @@ pG <- function(x, Sigma, d, log = FALSE){ ### x is an nxD matrix; if x is a vect
   }
 }
 
-dG <- function(x, Sigma, d, log = FALSE){
+dG <- function(x, Sigma, m, log = FALSE){
   if(!is.matrix(x)){
     x <- matrix(x, nrow = 1)
   }
   dGi <- function(xi){
     ind_nna <- !is.na(xi)
-    fun <- function(p, d){
+    fun <- function(p, m){
       X <- matrix(xi[ind_nna], ncol = sum(ind_nna), nrow = length(p), byrow = TRUE)
-      log_qF <- qF(p, d, TRUE)
+      log_qF <- qF(p, m, TRUE)
       return(exp(mvtnorm::dmvnorm(sign(X) * exp(log(abs(X)) - log_qF), sigma = Sigma[ind_nna, ind_nna], log = TRUE) - sum(ind_nna) * log_qF))
     }
-    val <- integrate(fun, lower = 0, upper = 1, d = d, rel.tol = 10^(-3), stop.on.error = FALSE)$value
+    val <- integrate(fun, lower = 0, upper = 1, m = m, rel.tol = 10^(-3), stop.on.error = FALSE)$value
     return(val)
   }
   val <- apply(x, 1, dGi)
@@ -217,9 +217,9 @@ dGI <- function(x, I, Sigma, log = FALSE){
     Mu1 <- c(Sigma_IcI %*% Sigma_II_m1 %*% xi[I])
     Sig1 <- Sigma_IcIc - Sigma_IcI %*% Sigma_II_m1 %*% Sigma_IIc
     #function of r to be integrated (needs to be defined for different values of r (= r is a vector))
-    fun <- function(p, n){
+    fun <- function(p, D){
       X <- matrix(xi, ncol = D, nrow = length(p), byrow = TRUE)
-      log_qF <- qF(p, n, TRUE)
+      log_qF <- qF(p, D, TRUE)
       XI_centered <- X[ , -c(I, which(!ind_nna))] - matrix(Mu1, ncol = sum(ind_nna) - nI, nrow = length(p), byrow = TRUE)
       val <- mvtnorm::dmvnorm(matrix(sign(X[ , I]) * exp(log(abs(X[ , I])) - log_qF), ncol = nI), sigma = Sigma_II, log = TRUE) - nI * log_qF
       if(nI < sum(ind_nna)){
@@ -228,7 +228,7 @@ dGI <- function(x, I, Sigma, log = FALSE){
       val <- exp(val)
       return( val )
     }
-    val <- integrate(fun, lower = 0, upper = 1, n, rel.tol = 10^(-3), stop.on.error = FALSE)$value
+    val <- integrate(fun, lower = 0, upper = 1, D, rel.tol = 10^(-3), stop.on.error = FALSE)$value
     return(val)
   }
   val <- mapply(dGIi, xi = x, I = I)
@@ -241,8 +241,8 @@ dGI <- function(x, I, Sigma, log = FALSE){
 }
 
 #Random generator from the joint distribution G
-rG <- function(n, Sigma, d){
-  R <- rF(n, d)
+rG <- function(n, Sigma, m){
+  R <- rF(n, m)
   W <- mvtnorm::rmvnorm(n, sigma = Sigma)
   X <- R * W
   return(X)
