@@ -11,7 +11,7 @@ dF = function(x, par, d = 1, log = FALSE){
     if(x[i] > 0){
       gam = 2^(1 - 1 / par) * (cos(pi * par / 2))^(1 / par)
       C = 2^(1 + d / 2 * (1 - 1 / par)) * gamma(1 + d / 2) / gamma(1 + d / (2 * par))
-      val = C * x^(d - 3) * stable_pdf(x^(-2), c(par, 1, gam, 0), 1)
+      val = C * x^(d - 3) * libstableR::stable_pdf(x^(-2), c(par, 1, gam, 0), 1)
     } else {
       val[i] = 0
     }
@@ -25,7 +25,7 @@ dF = function(x, par, d = 1, log = FALSE){
 
 ## Mixture CDF
 pF = function(x, par, d = 1, log = FALSE){
-  return((integrate(f = dF, lower = 0, upper = x, par = par, d = d)$value))
+  return((integrate(f = Vectorize(dF), lower = 0, upper = x, par = par, d = d)$value))
 }
 
 ## mixture quantile function
@@ -35,7 +35,7 @@ qF = function(prob, par, d = 1, log = FALSE){
     pF(x, par, d) - prob
   }
   
-  return(uniroot(Vectorize(fun), prob = prob, par = par, d = d, lower = 0, upper = 100)$root)
+  return(uniroot(f = Vectorize(fun), interval = c(0, 100), prob = prob, par = par, d = d)$root)
 }
 
 # tar rätt lång tid att simulera pga uniroot
@@ -68,7 +68,7 @@ pG1 <- function(x, par, log = FALSE){ ### if x is a vector, output is a vector; 
 		for(j in 1:D){
 			xi <- xmat[i, j]
 			if(!is.na(xi)){
-				val[i, j] <- integrate(Vectorize(fun), lower = 0, upper = 1, x = xi, par = par, rel.tol = 10^(-3), stop.on.error = FALSE)$value
+				val[i, j] <- integrate(f = Vectorize(fun), lower = 0, upper = 1, x = xi, par = par, rel.tol = 10^(-3), stop.on.error = FALSE)$value
 			}
 		}
 	}
@@ -91,7 +91,7 @@ qG1 <- function(p, par, log = FALSE){ ### if p is a vector, output is a vector; 
 	n <- nrow(pmat)
 	D <- ncol(pmat)
 	fun <- function(x, p, par){
-		return( pG1(x, par)-p )
+		return( pG1(x, par) - p )
 	}
 	val <- matrix(nrow = n, ncol = D)
 	for (i in 1:n){
@@ -103,7 +103,7 @@ qG1 <- function(p, par, log = FALSE){ ### if p is a vector, output is a vector; 
 				} else if(pi >= 1){
 					val[i, j] <- Inf
 				} else{
-					val[i, j] <- uniroot(fun, interval = c(-10^2, 10^2), p = pi, par = par, extendInt = 'yes')$root
+					val[i, j] <- uniroot(f = Vectorize(fun), interval = c(-10^2, 10^2), p = pi, par = par, extendInt = 'yes')$root
 				}
 			}
 		}
@@ -135,7 +135,7 @@ dG1 <- function(x, par, log = FALSE){ ### if x is a vector, output is a vector; 
 		for(j in 1:D){
 			xi <- xmat[i, j]
 			if(!is.na(xi)){
-				val[i, j] <- integrate(Vectorize(fun), lower = 0, upper = 1, x = xi, par = par, rel.tol = 10^(-3), stop.on.error = FALSE)$value
+				val[i, j] <- integrate(f = Vectorize(fun), lower = 0, upper = 1, x = xi, par = par, rel.tol = 10^(-3), stop.on.error = FALSE)$value
 			}
 		}
 	}
@@ -172,7 +172,7 @@ pG <- function(x, Sigma, par, log = FALSE){ ### x is an nxD matrix; if x is a ve
 			X <- matrix(xi[ind.nna], ncol = sum(ind.nna), nrow = length(p), byrow = TRUE)
 			return( apply(matrix(sign(X) * exp(log(abs(X)) - qF(p, par, TRUE)), ncol = sum(ind.nna)),1 , function(x) mvtnorm::pmvnorm(upper = x, sigma = Sigma[ind.nna,ind.nna])[1]) )
 		}
-		val <- integrate(Vectorize(fun), lower = 0, upper = 1, par, rel.tol = 10^(-3), stop.on.error = FALSE)$value
+		val <- integrate(f = Vectorize(fun), lower = 0, upper = 1, par = par, rel.tol = 10^(-3), stop.on.error = FALSE)$value
 		return(val)
 	}
 	val <- apply(x, 1, pGi)
@@ -186,7 +186,7 @@ pG <- function(x, Sigma, par, log = FALSE){ ### x is an nxD matrix; if x is a ve
 #Multivariate density function (PDF)
 dG <- function(x, Sigma, par, log = FALSE){
 	if(!is.matrix(x)){
-		x <- matrix(x,nrow=1)
+		x <- matrix(x, nrow = 1)
 	}
 	dGi <- function(xi){
 		ind.nna <- !is.na(xi)
@@ -195,10 +195,10 @@ dG <- function(x, Sigma, par, log = FALSE){
 			log.qF <- qF(p, par, TRUE)
 			return(exp(mvtnorm::dmvnorm(sign(X) * exp(log(abs(X)) - log.qF), sigma = Sigma[ind.nna, ind.nna], log = TRUE) - sum(ind.nna) * log.qF))
 		}
-		val <- integrate(Vectorize(fun), lower = 0, upper = 1, par = par, rel.tol = 10^(-3), stop.on.error = FALSE)$value
+		val <- integrate(f = Vectorize(fun), lower = 0, upper = 1, par = par, rel.tol = 10^(-3), stop.on.error = FALSE)$value
 		return(val)
 	}
-	val <- apply(x,1,dGi)
+	val <- apply(x, 1, dGi)
 	if(log){
 		return( log(val) )	
 	} else{
