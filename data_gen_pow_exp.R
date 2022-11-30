@@ -1,5 +1,3 @@
-
-
 pow_exp_data_gen <- function(n_obs, n_sites, param, empirMar){
   
   coord <- matrix(runif(2 * n_sites), ncol = 2)
@@ -20,3 +18,4 @@ corr_fun <- function(h, param){
 	  return( exp( -(h / exp(param[1]) )^param[2]) )
 }
 #
+
