@@ -48,15 +48,15 @@ copula_powExp_nocens <- function(dat_U, coord, init_val, ncores = 1, hessian = F
 				ind_block <- c(1:n_obs)
 			}
 			  
-		  #transform data datUc to RW scale using qG
-			x <- matrix(qG1(c(dat_U[ind_block, ])), ncol = ncol(dat_U[ind_block, ]))
+		  #transform data dat_U to RW scale using qG
+			x <- matrix(qG1(p = c(dat_U[ind_block, ]), par = param[3]), ncol = ncol(dat_U[ind_block, ])) 
 	
-			contrib <- sum(dC(x, Sigma = Sigmab, log = TRUE, RWscale = TRUE))
+			contrib <- sum(dC(u = x, Sigma = Sigmab, par = param[3], log = TRUE, RWscale = TRUE))
 			
 			return(-contrib)
 		}
 	
-		nllik_res <- sum(unlist(parallel::parLapply(cl, 1:ncores, nllik_block)))
+		nllik_res <- sum(unlist(parallel::parLapply(cl = cl, X = 1:ncores, fun = nllik_block)))
 
 		return(nllik_res)	
 			
@@ -66,7 +66,7 @@ copula_powExp_nocens <- function(dat_U, coord, init_val, ncores = 1, hessian = F
 	parallel::clusterExport(cl, ls(envir = .GlobalEnv))
 	parallel::clusterEvalQ(cl, library(mvtnorm))
 
-	opt <- optim(init_val, nllik, hessian = hessian, method = "Nelder-Mead") #, control = list(...))
+	opt <- optim(par = init_val, fn = nllik, gr = NULL, method = method, hessian = hessian) #, control = list(...))
 
 	parallel::stopCluster(cl)
 
