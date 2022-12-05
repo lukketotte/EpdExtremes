@@ -57,6 +57,7 @@ qF = function(prob, par, d = 1, log = FALSE){
   )
 }
 
+
 # tar tid att simulera pga uniroot
 rF = function(n, par, d = 1){
   val = numeric(n)
