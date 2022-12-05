@@ -25,7 +25,7 @@ dF = function(x, par, d = 1, log = FALSE){
 
 ## Mixture CDF
 pF = function(x, par, d = 1, log = FALSE){
-  return((integrate(f = Vectorize(dF), lower = 0, upper = x, par = par, d = d)$value))
+  return((integrate(f = Vectorize(dF), lower = 0, upper = x, par = par, d = d, rel.tol = 10^(-1))$value))
 }
 
 ## mixture quantile function
@@ -191,7 +191,7 @@ pG <- function(x, Sigma, par, log = FALSE){ ### x is an nxD matrix; if x is a ve
 			X <- matrix(xi[ind.nna], ncol = sum(ind.nna), nrow = length(p), byrow = TRUE)
 			return( apply(matrix(sign(X) * exp(log(abs(X)) - qF(p, par, TRUE)), ncol = sum(ind.nna)),1 , function(x) mvtnorm::pmvnorm(upper = x, sigma = Sigma[ind.nna,ind.nna])[1]) )
 		}
-		val <- integrate(f = Vectorize(fun), lower = 0, upper = 1, par = par, rel.tol = 10^(-3), stop.on.error = FALSE)$value
+		val <- integrate(f = Vectorize(fun), lower = 0, upper = 1, par = par, rel.tol = 10^(-1), stop.on.error = FALSE)$value
 		return(val)
 	}
 	val <- apply(x, 1, pGi)
@@ -214,7 +214,7 @@ dG <- function(x, Sigma, par, log = FALSE){
 			log.qF <- qF(p, par, TRUE)
 			return(exp(mvtnorm::dmvnorm(sign(X) * exp(log(abs(X)) - log.qF), sigma = Sigma[ind.nna, ind.nna], log = TRUE) - sum(ind.nna) * log.qF))
 		}
-		val <- integrate(f = Vectorize(fun), lower = 0, upper = 1, par = par, rel.tol = 10^(-3), stop.on.error = FALSE)$value
+		val <- integrate(f = Vectorize(fun), lower = 0, upper = 1, par = par, rel.tol = 10^(-1), stop.on.error = FALSE)$value
 		return(val)
 	}
 	val <- apply(x, 1, dGi)
@@ -266,7 +266,7 @@ dGI <- function(x, I, Sigma, par, log = FALSE){
 			val <- exp(val)
 			return( val )
 		}
-		val <- integrate(Vectorize(fun), lower = 0, upper = 1, par, rel.tol = 10^(-3), stop.on.error = FALSE)$value
+		val <- integrate(Vectorize(fun), lower = 0, upper = 1, par, rel.tol = 10^(-1), stop.on.error = FALSE)$value
 		return(val)
 	}
 	val <- mapply(dGIi, xi = x, I = I)
