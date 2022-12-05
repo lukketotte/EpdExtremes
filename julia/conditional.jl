@@ -1,18 +1,17 @@
-using LinearAlgebra, SpecialFunctions,  QuadGK, Cubature, Distributions, Plots, KernelDensity, Optim
+using LinearAlgebra, SpecialFunctions, QuadGK, Distributions, Plots, KernelDensity, Optim
 include("./Distributions/alphaStable.jl")
 include("./Distributions/mepd.jl")
 using .AlphaStableDistribution
 using .MultivariateEpd
 
-# generate from multviaraite EPD example
-repd(10, MvEpd(0.4, diagm([1.1, 0.2, 0.9])))
-
 function h(x::Real, p::Real, D::Int)
-    γ = 2^(1-1/p)*cos(π*p/2)
+    γ = 2^(1-1/p)*(cos(π*p/2))
     δ = γ *tan(π*p/2)
     C = 2^(1+D/2*(1-1/p)) * gamma(1+D/2) / gamma(1+D/(2*p))
     C*x^(D-3)*pdf(AlphaStable(p, 1., γ, δ), x^(-2))
 end
+
+h(1, 0.9, 1)
 
 quadgk(r -> h(r, 0.5, 1), 0, Inf)
 
@@ -57,7 +56,7 @@ function rmix(n::Int, x::AbstractVector{<:Real}, Σ::AbstractMatrix{<:Real}, p::
     γ = 2^(1-1/p)*cos(π*p/2)^(1/p)
     δ = γ *tan(π*p/2)
     generator = AlphaStable(p, 1., γ, δ)
-    for i in 2:length(v)
+    for i in 2:lastindex(v)
         w = 2^(1/p-1)*v[i-1]^(-2)
         y = rand(generator)
         u = rand(Uniform())

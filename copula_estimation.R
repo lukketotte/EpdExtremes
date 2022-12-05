@@ -66,7 +66,8 @@ copula_powExp_nocens <- function(dat_U, coord, init_val, ncores = 1, hessian = F
 	parallel::clusterExport(cl, ls(envir = .GlobalEnv))
 	parallel::clusterEvalQ(cl, library(mvtnorm))
 
-	opt <- optim(par = init_val, fn = nllik, gr = NULL, method = method, hessian = hessian) #, control = list(...))
+	opt <- optim(par = init_val, fn = nllik, gr = NULL, method = method, hessian = hessian, 
+	             control=list("maxit" = 200, "reltol" = 10^(-1))) #, control = list(...))
 
 	parallel::stopCluster(cl)
 
@@ -85,11 +86,6 @@ copula_powExp_nocens <- function(dat_U, coord, init_val, ncores = 1, hessian = F
 	
 	return(z)		
 }
-
-
-
-
-
 
 
 #############################################

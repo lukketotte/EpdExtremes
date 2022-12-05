@@ -1,5 +1,4 @@
-using Distributed, SharedArrays
-@everywhere using LinearAlgebra, SpecialFunctions,  QuadGK, Cubature, Distributions, Roots
+using LinearAlgebra, SpecialFunctions,  QuadGK, Cubature, Distributions, Roots
 using Plots, StatsPlots, DataFrames, CSV
 
 @everywhere g(x::Float64, p::Real) = exp(-abs(x)^p/2) / (π * gamma(1+1/p) * 2^(1/p))
