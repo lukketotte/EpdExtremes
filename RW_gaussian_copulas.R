@@ -49,14 +49,15 @@ qF = function(prob, par, d = 1, log = FALSE){
   }
   tryCatch(
     {
-      return(uniroot(f = Vectorize(fun), interval = c(0, upperPoint(p, d)), prob = prob, par = par, d = d)$root)   
+      return(uniroot(f = Vectorize(fun), interval = c(0, upperPoint(par, d)), prob = prob, 
+                     par = par, d = d, maxiter = 50, tol = 1e-2)$root)   
     }, error = function(cond) {
       return(uniroot(f = Vectorize(fun), interval = c(0, 100), prob = prob, par = par, d = d)$root)   
     }
   )
 }
 
-# tar rätt lång tid att simulera pga uniroot
+# tar tid att simulera pga uniroot
 rF = function(n, par, d = 1){
   val = numeric(n)
   for(i in 1:n){
@@ -86,7 +87,7 @@ pG1 <- function(x, par, log = FALSE){ ### if x is a vector, output is a vector; 
 		for(j in 1:D){
 			xi <- xmat[i, j]
 			if(!is.na(xi)){
-				val[i, j] <- integrate(f = Vectorize(fun), lower = 0, upper = 1, x = xi, par = par, rel.tol = 10^(-3), stop.on.error = FALSE)$value
+				val[i, j] <- integrate(f = Vectorize(fun), lower = 0, upper = 1, x = xi, par = par, rel.tol = 10^(-1), stop.on.error = FALSE)$value
 			}
 		}
 	}
@@ -153,7 +154,7 @@ dG1 <- function(x, par, log = FALSE){ ### if x is a vector, output is a vector; 
 		for(j in 1:D){
 			xi <- xmat[i, j]
 			if(!is.na(xi)){
-				val[i, j] <- integrate(f = Vectorize(fun), lower = 0, upper = 1, x = xi, par = par, rel.tol = 10^(-3), stop.on.error = FALSE)$value
+				val[i, j] <- integrate(f = Vectorize(fun), lower = 0, upper = 1, x = xi, par = par, rel.tol = 10^(-1), stop.on.error = FALSE)$value
 			}
 		}
 	}
