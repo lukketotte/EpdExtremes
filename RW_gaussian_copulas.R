@@ -25,7 +25,7 @@ dF = function(x, par, d = 1, log = FALSE){
 
 ## Mixture CDF
 pF = function(x, par, d = 1, log = FALSE){
-  return((integrate(f = Vectorize(dF), lower = 0, upper = x, par = par, d = d)$value))
+  return((integrate(f = Vectorize(dF), lower = 0, upper = x, par = par, d = d, rel.tol = 10^(-1))$value))
 }
 
 ## mixture quantile function
@@ -49,14 +49,15 @@ qF = function(prob, par, d = 1, log = FALSE){
   }
   tryCatch(
     {
-      return(uniroot(f = Vectorize(fun), interval = c(0, upperPoint(p, d)), prob = prob, par = par, d = d)$root)   
+      return(uniroot(f = Vectorize(fun), interval = c(0, upperPoint(par, d)), prob = prob, 
+                     par = par, d = d, maxiter = 50, tol = 1e-2)$root)   
     }, error = function(cond) {
       return(uniroot(f = Vectorize(fun), interval = c(0, 100), prob = prob, par = par, d = d)$root)   
     }
   )
 }
 
-# tar rätt lång tid att simulera pga uniroot
+# tar tid att simulera pga uniroot
 rF = function(n, par, d = 1){
   val = numeric(n)
   for(i in 1:n){
@@ -86,7 +87,7 @@ pG1 <- function(x, par, log = FALSE){ ### if x is a vector, output is a vector; 
 		for(j in 1:D){
 			xi <- xmat[i, j]
 			if(!is.na(xi)){
-				val[i, j] <- integrate(f = Vectorize(fun), lower = 0, upper = 1, x = xi, par = par, rel.tol = 10^(-3), stop.on.error = FALSE)$value
+				val[i, j] <- integrate(f = Vectorize(fun), lower = 0, upper = 1, x = xi, par = par, rel.tol = 10^(-1), stop.on.error = FALSE)$value
 			}
 		}
 	}
@@ -153,7 +154,7 @@ dG1 <- function(x, par, log = FALSE){ ### if x is a vector, output is a vector; 
 		for(j in 1:D){
 			xi <- xmat[i, j]
 			if(!is.na(xi)){
-				val[i, j] <- integrate(f = Vectorize(fun), lower = 0, upper = 1, x = xi, par = par, rel.tol = 10^(-3), stop.on.error = FALSE)$value
+				val[i, j] <- integrate(f = Vectorize(fun), lower = 0, upper = 1, x = xi, par = par, rel.tol = 10^(-1), stop.on.error = FALSE)$value
 			}
 		}
 	}
@@ -190,7 +191,7 @@ pG <- function(x, Sigma, par, log = FALSE){ ### x is an nxD matrix; if x is a ve
 			X <- matrix(xi[ind.nna], ncol = sum(ind.nna), nrow = length(p), byrow = TRUE)
 			return( apply(matrix(sign(X) * exp(log(abs(X)) - qF(p, par, TRUE)), ncol = sum(ind.nna)),1 , function(x) mvtnorm::pmvnorm(upper = x, sigma = Sigma[ind.nna,ind.nna])[1]) )
 		}
-		val <- integrate(f = Vectorize(fun), lower = 0, upper = 1, par = par, rel.tol = 10^(-3), stop.on.error = FALSE)$value
+		val <- integrate(f = Vectorize(fun), lower = 0, upper = 1, par = par, rel.tol = 10^(-1), stop.on.error = FALSE)$value
 		return(val)
 	}
 	val <- apply(x, 1, pGi)
@@ -213,7 +214,7 @@ dG <- function(x, Sigma, par, log = FALSE){
 			log.qF <- qF(p, par, TRUE)
 			return(exp(mvtnorm::dmvnorm(sign(X) * exp(log(abs(X)) - log.qF), sigma = Sigma[ind.nna, ind.nna], log = TRUE) - sum(ind.nna) * log.qF))
 		}
-		val <- integrate(f = Vectorize(fun), lower = 0, upper = 1, par = par, rel.tol = 10^(-3), stop.on.error = FALSE)$value
+		val <- integrate(f = Vectorize(fun), lower = 0, upper = 1, par = par, rel.tol = 10^(-1), stop.on.error = FALSE)$value
 		return(val)
 	}
 	val <- apply(x, 1, dGi)
@@ -265,7 +266,7 @@ dGI <- function(x, I, Sigma, par, log = FALSE){
 			val <- exp(val)
 			return( val )
 		}
-		val <- integrate(Vectorize(fun), lower = 0, upper = 1, par, rel.tol = 10^(-3), stop.on.error = FALSE)$value
+		val <- integrate(Vectorize(fun), lower = 0, upper = 1, par, rel.tol = 10^(-1), stop.on.error = FALSE)$value
 		return(val)
 	}
 	val <- mapply(dGIi, xi = x, I = I)
