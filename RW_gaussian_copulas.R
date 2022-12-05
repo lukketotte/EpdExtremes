@@ -57,7 +57,6 @@ qF = function(prob, par, d = 1, log = FALSE){
   )
 }
 
-microbenchmark(qF(0.8, 0.5))
 
 # tar tid att simulera pga uniroot
 rF = function(n, par, d = 1){

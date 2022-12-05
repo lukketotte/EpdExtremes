@@ -33,4 +33,4 @@ test(x::Real) = pF(x, 0.5, 1) - 0.8
 pF(1, 0.5, 1) - 0.8
 
 
-find_zero(test, (1, 10))
+@time find_zero(test, (1, 10))
