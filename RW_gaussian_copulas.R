@@ -29,13 +29,31 @@ pF = function(x, par, d = 1, log = FALSE){
 }
 
 ## mixture quantile function
+upperPoint = function(p, d){
+  if(p >= 0.35 && p < 0.45){
+    return(200 - 400*p + 3*d)
+  } else if(p >= 0.45 && p < 0.6){
+    return(46 - 68*p + 2*d)
+  } else if(p >= 0.6 && p < 0.75){
+    return(13.3 - 14.5*p + 0.5*d)
+  } else if(p>=0.75){
+    return(6.3 - 5.3*p + 0.25*d)
+  } else {
+    return(100)
+  }
+}
+
 qF = function(prob, par, d = 1, log = FALSE){
-  
   fun = function(x, prob, par, d = 1){
     pF(x, par, d) - prob
   }
-  
-  return(uniroot(f = Vectorize(fun), interval = c(0, 100), prob = prob, par = par, d = d)$root)
+  tryCatch(
+    {
+      return(uniroot(f = Vectorize(fun), interval = c(0, upperPoint(p, d)), prob = prob, par = par, d = d)$root)   
+    }, error = function(cond) {
+      return(uniroot(f = Vectorize(fun), interval = c(0, 100), prob = prob, par = par, d = d)$root)   
+    }
+  )
 }
 
 # tar rätt lång tid att simulera pga uniroot
