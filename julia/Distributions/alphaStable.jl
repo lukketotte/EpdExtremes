@@ -42,6 +42,7 @@ end
 #pdf(d::AlphaStable, x::Real) = real(quadgk(t -> exp(-im*t*x)*chf(t, d), -Inf, Inf)[1])
 # following Nolan 1997
 h(t::Real, x::Real, α::Real, β::Real) = x*t -β*tan(π*α/2) * t^α
+
 function pdf(d::AlphaStable, x::Real)
     α, β, σ, μ = params(d)
     x = (x-μ)/σ
