@@ -1,4 +1,4 @@
-using SpecialFunctions, LinearAlgebra,QuadGK,Roots
+using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions
 using BenchmarkTools
 
 ζ(α::Real) = -tan(π*α/2)
@@ -26,11 +26,42 @@ pF = function(x::Real, p::Real, d::Int)
   quadgk(x -> dF(x,p,d), 0, x)[1]
 end
 
-@time pF(2, 0.5, 1)
 
-test(x::Real) = pF(x, 0.5, 1) - 0.8
+qF₁(x::Real, prob::Real, p::Real, d::Integer) = pF(x, p, d) - prob
 
-pF(1, 0.5, 1) - 0.8
+function upperPoint(p::Real, d::Integer)
+  if p >= 0.35 && p < 0.45
+    200 - 400*p + 3*d
+  elseif  p >= 0.45 && p < 0.6
+    46 - 68*p + 2*d
+  elseif p >= 0.6 && p < 0.75
+    13.3 - 14.5*p + 0.5*d
+  elseif p >= 0.75
+    6.3 - 5.3*p + 0.25*d
+  else
+    100
+  end
+end
 
+qF = function(prob::Real, p::Real, d::Integer)
+  prob > 0 && prob < 1 || throw(DomainError(prob, "must be on (0,1)"))
+  try
+    find_zero(x -> qF₁(x, prob, p, d), (0.1, upperPoint(p, d)))
+  catch e
+    if isa(e, DomainError) || isa(e, ArgumentError)
+      find_zero(x -> qF₁(x, prob, p, d), (0.01, 100))
+    end
+  end
+end
 
-@time find_zero(test, (1, 10))
+@time qF(0.1, 0.9, 1)
+
+rF = function(n::Integer, p::Real, d::Integer)
+  ret = zeros(n)
+  for i in eachindex(ret)
+    ret[i] = qF(rand(Uniform()), p, d)
+  end
+  ret
+end
+
+@time rF(10, 0.9, 1);
