@@ -12,7 +12,7 @@ function V(α::Real, θ::Real)
 end
 
 h(θ::Real, x::Real, α::Real) = (x-ζ(α))^(α/(α-1))*V(α,θ)*exp(-(x-ζ(α))^(α/(α-1))*V(α,θ))
-f(x::Real, α::Real) = α/(π*(x-ζ(α))*abs(α-1)) * quadgk(θ -> h(θ, x, α), -θ₀(α), π/2)[1]
+f(x::Real, α::Real) = α/(π*(x-ζ(α))*abs(α-1)) * quadgk(θ -> h(θ, x, α), -θ₀(α), α < 0.95 ? π/2 : 1.57)[1]
 dstable(x::Real, α::Real, γ::Real) = f((x-γ * tan(π*α/2))/γ, α)/γ
 
 dF = function(x::Real, p::Real, d::Int)
@@ -25,7 +25,6 @@ end
 pF = function(x::Real, p::Real, d::Int)
   quadgk(x -> dF(x,p,d), 0, x)[1]
 end
-
 
 qF₁(x::Real, prob::Real, p::Real, d::Integer) = pF(x, p, d) - prob
 
@@ -61,5 +60,3 @@ rF = function(n::Integer, p::Real, d::Integer)
   end
   ret
 end
-
-##
