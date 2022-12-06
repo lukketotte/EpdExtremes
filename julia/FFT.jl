@@ -54,8 +54,6 @@ qF = function(prob::Real, p::Real, d::Integer)
   end
 end
 
-@time qF(0.1, 0.9, 1)
-
 rF = function(n::Integer, p::Real, d::Integer)
   ret = zeros(n)
   for i in eachindex(ret)
@@ -64,4 +62,4 @@ rF = function(n::Integer, p::Real, d::Integer)
   ret
 end
 
-@time rF(10, 0.9, 1);
+##
