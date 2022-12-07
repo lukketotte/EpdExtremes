@@ -2,7 +2,7 @@ module QFinterval
 
 export getInterval
 
-using JLD2
+using JLD2 # for serializing data
 
 const dataPath = "./julia/constants/qFinterval.jld2"
 intervals = load_object(dataPath)
