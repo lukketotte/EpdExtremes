@@ -1,4 +1,6 @@
 using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions
+include("./Constants/qFinterval.jl")
+using .QFinterval
 using BenchmarkTools
 
 ζ(α::Real) = -tan(π*α/2)
@@ -45,10 +47,10 @@ end
 qF = function(prob::Real, p::Real, d::Integer)
   prob > 0 && prob < 1 || throw(DomainError(prob, "must be on (0,1)"))
   try
-    find_zero(x -> qF₁(x, prob, p, d), (0.1, upperPoint(p, d)))
+    find_zero(x -> qF₁(x, prob, p, d), getInterval(prob, p, d), xatol=1e-4)
   catch e
     if isa(e, DomainError) || isa(e, ArgumentError)
-      find_zero(x -> qF₁(x, prob, p, d), (0.01, 100))
+      find_zero(x -> qF₁(x, prob, p, d), (0.01, 100), xatol=1e-4)
     end
   end
 end
