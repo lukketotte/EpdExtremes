@@ -67,7 +67,6 @@ rF = function(n, par, d = 1){
   return(val)
 }
 
-
 #####################################
 ## Univariate mixture distriubtion ##
 #####################################
