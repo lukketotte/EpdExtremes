@@ -30,19 +30,6 @@ end
 
 qF₁(x::Real, prob::Real, p::Real, d::Integer) = pF(x, p, d) - prob
 
-function upperPoint(p::Real, d::Integer)
-  if p >= 0.35 && p < 0.45
-    200 - 400*p + 3*d
-  elseif  p >= 0.45 && p < 0.6
-    46 - 68*p + 2*d
-  elseif p >= 0.6 && p < 0.75
-    13.3 - 14.5*p + 0.5*d
-  elseif p >= 0.75
-    6.3 - 5.3*p + 0.25*d
-  else
-    100
-  end
-end
 
 qF = function(prob::Real, p::Real, d::Integer)
   prob > 0 && prob < 1 || throw(DomainError(prob, "must be on (0,1)"))
