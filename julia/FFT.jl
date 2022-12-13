@@ -1,4 +1,6 @@
 using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions
+include("./Constants/qFinterval.jl")
+using .QFinterval
 using BenchmarkTools
 
 ζ(α::Real) = -tan(π*α/2)
@@ -12,7 +14,7 @@ function V(α::Real, θ::Real)
 end
 
 h(θ::Real, x::Real, α::Real) = (x-ζ(α))^(α/(α-1))*V(α,θ)*exp(-(x-ζ(α))^(α/(α-1))*V(α,θ))
-f(x::Real, α::Real) = α/(π*(x-ζ(α))*abs(α-1)) * quadgk(θ -> h(θ, x, α), -θ₀(α), π/2)[1]
+f(x::Real, α::Real) = α/(π*(x-ζ(α))*abs(α-1)) * quadgk(θ -> h(θ, x, α), -θ₀(α), α <= 0.95 ? π/2 : 1.57)[1]
 dstable(x::Real, α::Real, γ::Real) = f((x-γ * tan(π*α/2))/γ, α)/γ
 
 dF = function(x::Real, p::Real, d::Int)
@@ -26,35 +28,19 @@ pF = function(x::Real, p::Real, d::Int)
   quadgk(x -> dF(x,p,d), 0, x)[1]
 end
 
-
 qF₁(x::Real, prob::Real, p::Real, d::Integer) = pF(x, p, d) - prob
 
-function upperPoint(p::Real, d::Integer)
-  if p >= 0.35 && p < 0.45
-    200 - 400*p + 3*d
-  elseif  p >= 0.45 && p < 0.6
-    46 - 68*p + 2*d
-  elseif p >= 0.6 && p < 0.75
-    13.3 - 14.5*p + 0.5*d
-  elseif p >= 0.75
-    6.3 - 5.3*p + 0.25*d
-  else
-    100
-  end
-end
 
 qF = function(prob::Real, p::Real, d::Integer)
   prob > 0 && prob < 1 || throw(DomainError(prob, "must be on (0,1)"))
   try
-    find_zero(x -> qF₁(x, prob, p, d), (0.1, upperPoint(p, d)))
+    find_zero(x -> qF₁(x, prob, p, d), getInterval(prob, p, d), xatol=1e-4)
   catch e
     if isa(e, DomainError) || isa(e, ArgumentError)
-      find_zero(x -> qF₁(x, prob, p, d), (0.01, 100))
+      find_zero(x -> qF₁(x, prob, p, d), (0.01, 100), xatol=1e-4)
     end
   end
 end
-
-@time qF(0.1, 0.9, 1)
 
 rF = function(n::Integer, p::Real, d::Integer)
   ret = zeros(n)
@@ -64,4 +50,3 @@ rF = function(n::Integer, p::Real, d::Integer)
   ret
 end
 
-@time rF(10, 0.9, 1);
