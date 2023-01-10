@@ -303,15 +303,4 @@ end
 rC = function (n::Real, d::Real, Sigma::Matrix{Float64}, p::Real)
   return pG1(rG(n, d, Sigma, p), p)
 end
-@time rC(5, 2, sigma, 0.9)
 
-
-ds = 5
-u = rand(ds,ds)
-inds = sample(1:ds, 2; replace=false)
-I = Vector{Vector{Int}}(undef, ds)
-for i in 1:ds
-  I[i] = inds
-end
-sigma = Symmetric(rand(Uniform(-1, 1), ds, ds))
-sigma = sigma' * sigma
