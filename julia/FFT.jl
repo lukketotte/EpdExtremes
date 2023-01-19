@@ -14,7 +14,7 @@ function V(α::Real, θ::Real)
 end
 
 h(θ::Real, x::Real, α::Real) = (x-ζ(α))^(α/(α-1))*V(α,θ)*exp(-(x-ζ(α))^(α/(α-1))*V(α,θ))
-f(x::Real, α::Real) = α/(π*(x-ζ(α))*abs(α-1)) * quadgk(θ -> h(θ, x, α), -θ₀(α), α <= 0.95 ? π/2 : 1.57)[1]
+f(x::Real, α::Real) = α/(π*(x-ζ(α))*abs(α-1)) * quadgk(θ -> h(θ, x, α), -θ₀(α), α <= 0.95 ? π/2 : 1.55)[1]
 dstable(x::Real, α::Real, γ::Real) = f((x-γ * tan(π*α/2))/γ, α)/γ
 
 dF = function(x::Real, p::Real, d::Int)
@@ -37,7 +37,7 @@ qF = function(prob::Real, p::Real, d::Integer)
     find_zero(x -> qF₁(x, prob, p, d), getInterval(prob, p, d), xatol=1e-4)
   catch e
     if isa(e, DomainError) || isa(e, ArgumentError)
-      find_zero(x -> qF₁(x, prob, p, d), (0.01, 100), xatol = 1e-4)
+      find_zero(x -> qF₁(x, prob, p, d), (0.01, p > 0.95 ? 4 : 100), xatol = 1e-4)
     end
   end
 end
