@@ -6,3 +6,4 @@ sim_pow_exp.R
 PowExpData.R
 .Rproj
 test.*
+.DS_store
