@@ -1,4 +1,4 @@
-using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions, StatsFuns, MvNormalCDF, Random, InvertedIndices
+using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions, StatsFuns, MvNormalCDF, Random, InvertedIndices, PositiveFactorizations, PDMats
 include("./Constants/qFinterval.jl")
 using .QFinterval
 using BenchmarkTools
@@ -14,7 +14,7 @@ function V(α::Real, θ::Real)
 end
 
 h(θ::Real, x::Real, α::Real) = (x-ζ(α))^(α/(α-1))*V(α,θ)*exp(-(x-ζ(α))^(α/(α-1))*V(α,θ))
-f(x::Real, α::Real) = α/(π*(x-ζ(α))*abs(α-1)) * quadgk(θ -> h(θ, x, α), -θ₀(α), α <= 0.95 ? π/2 : 1.55)[1]
+f(x::Real, α::Real) = α/(π*(x-ζ(α))*abs(α-1)) * quadgk(θ -> h(θ, x, α), -θ₀(α), α <= 0.95 ? π/2 : 1.57)[1]
 dstable(x::Real, α::Real, γ::Real) = f((x-γ * tan(π*α/2))/γ, α)/γ
 
 dF = function(x::Real, p::Real, d::Int)
@@ -89,7 +89,7 @@ qG1 = function(prob::Matrix{Float64}, p::Real)
           if prob_i >= 1
             val[i, j] = Inf
           else
-            val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), (-5, 5))
+            val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), (-100, 100))
           end
         end
       end
@@ -163,7 +163,12 @@ end
 
 pGi_fun = function (prob::Real, xi::Vector{Float64}, Sigma::Matrix{Float64}, p::Real, D::Integer, ind_nna::Vector{Int64})
   X = sign.(xi[ind_nna]) .* exp.(log.(abs.(xi[ind_nna])) .- log(qF(prob, p, D)))
-  return mvnormcdf(MvNormal(Sigma[ind_nna, ind_nna]), repeat([-Inf], length(X)), X)[1]
+  if length(X) == 1
+    val = StatsFuns.normcdf(0.0, Sigma[1], X[1])
+  else
+    val = mvnormcdf(MvNormal(Sigma[ind_nna, ind_nna]), repeat([-Inf], length(X)), X)[1]
+  end
+  return val
 end
 ##
 
@@ -194,7 +199,12 @@ end
 dGi_fun = function (prob::Real, xi::Vector{Float64}, p::Real, Sigma::Matrix{Float64}, D::Integer, ind_nna::Vector{Int64}, num_nna::Integer)
   log_qF = log(qF(prob, p, D))
   X = sign.(xi[ind_nna]) .* exp.(log.(abs.(xi[ind_nna])) .- log_qF)
-  return exp(pdf(MvLogNormal(Sigma[ind_nna, ind_nna]), X) .- num_nna * log_qF)
+  if length(X) == 1
+    val = exp(pdf(LogNormal(Sigma[1]), X[1]) .- num_nna * log_qF)
+  else
+    val = exp(pdf(MvLogNormal(Sigma[ind_nna, ind_nna]), X) .- num_nna * log_qF)
+  end
+  return val
 end
 ##
 
@@ -252,6 +262,10 @@ gauss_fun = function (up::Vector{Float64}, Sigma::Matrix{Float64})
   if length(up) == 1
     gauss_res = map(max, 0, StatsFuns.normcdf(0.0, Sigma[1], up[1]))
   else
+    if !isposdef(Sigma)
+      sig_chol = cholesky(Positive, Sigma)
+      Sigma = PDMat(sig_chol.L * transpose(sig_chol.L))
+    end
     gauss_res = map(max, 0, mvnormcdf(MvNormal(Sigma), repeat([-Inf], length(up)), up)[1])
   end
   return log.(map(min, 1, gauss_res))
@@ -262,7 +276,7 @@ end
 rG = function (n::Integer, d::Integer, Sigma::Matrix{Float64}, p::Real)
   R = rF(n, p, d)
   W = rand(MvNormal(Sigma), n)
-  return R .* W
+  return R .* permutedims(W)
 end
 
 ###################################################################################################################################
@@ -270,7 +284,7 @@ end
 ###################################################################################################################################
 
 # Copula distribution (CDF)
-pC = function (u::Vector{Float64}, Sigma::Matrix{Float64}, p::Real) # u should be a vector of U(0,1)
+pC = function (u::Matrix{Float64}, Sigma::Matrix{Float64}, p::Real) # u should be a vector of U(0,1)
   return pG(qG1(u, p), Sigma, p)
 end
 
@@ -297,7 +311,6 @@ dCI_fun = function (u_i::Vector{Float64}, I_i::Vector{Int64}, p::Real)
   u_i_mat = reshape(u_i[I_i], 1, length(I_i))
   return sum(dG1(qG1(u_i_mat, p), p))
 end
-@time dCI(u, I, sigma, 0.9)
 
 # Random generator from the copula
 rC = function (n::Real, d::Real, Sigma::Matrix{Float64}, p::Real)
