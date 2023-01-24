@@ -1,3 +1,7 @@
+module Utils
+
+using LinearAlgebra
+
 cor_fun = function (h::Matrix{Float64}, param::Vector{Float64})
     return exp.(-(h ./ exp(param[1])).^param[2])
 end
@@ -25,4 +29,6 @@ compute_I_nexc_nb_i = function (i::Integer, I_nexc::Vector{Vector{Int64}})
         res += same_vec(I_nexc[j], I_nexc[i])
     end
     return res
+end
+
 end

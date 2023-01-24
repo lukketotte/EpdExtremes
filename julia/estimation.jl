@@ -1,7 +1,9 @@
-using Optim, Compat, LinearAlgebra, Statistics, Random, Dates
-include("utils.jl")
+using Distributed, SharedArrays
 
-Threads.nthreads()
+@everywhere using Optim, Compat, LinearAlgebra, Statistics, Random, Dates
+include("./utils.jl")
+include("./FFT.jl")
+@everywhere using .MepdCopula, .Utils
 
 dimension = 2
 nObs = 1

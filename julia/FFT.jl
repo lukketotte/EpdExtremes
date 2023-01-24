@@ -1,7 +1,10 @@
-using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions, StatsFuns, MvNormalCDF, Random, InvertedIndices, PositiveFactorizations, PDMats
+module MepdCopula
+
+export rC, dC, pC, qF, pF
+
+using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions, StatsFuns, MvNormalCDF, Random, InvertedIndices
 include("./Constants/qFinterval.jl")
 using .QFinterval
-using BenchmarkTools
 
 ζ(α::Real) = -tan(π*α/2)
 θ₀(α::Real) = 1/α * atan(tan(π*α/2))
@@ -34,10 +37,21 @@ qF₁(x::Real, prob::Real, p::Real, d::Integer) = pF(x, p, d) - prob
 qF = function(prob::Real, p::Real, d::Integer)
   prob > 0 && prob < 1 || throw(DomainError(prob, "must be on (0,1)"))
   try
-    find_zero(x -> qF₁(x, prob, p, d), getInterval(prob, p, d), xatol=1e-4)
+    find_zero(x -> qF₁(x, prob, p, d), getInterval(prob, p, d), xatol=2e-3)
   catch e
     if isa(e, DomainError) || isa(e, ArgumentError)
-      find_zero(x -> qF₁(x, prob, p, d), (0.01, p > 0.95 ? 4 : 100), xatol = 1e-4)
+      try
+        if p > 0.95
+          upper = 4
+        elseif p <= 0.3
+          upper = 10000
+        else
+          upper = 100
+        end
+        find_zero(x -> qF₁(x, prob, p, d), (1e-3, upper), xatol = 2e-3)
+      catch e
+        throw(DomainError((prob, p, d), " argument gives bracketing error"))
+      end
     end
   end
 end
@@ -63,7 +77,7 @@ pG1 = function(x::Matrix{Float64}, p::Real)
     for j in 1:D
       xi = x[i, j]
       if !ismissing(xi)
-        val[i, j] = quadgk(x -> pG1_fun(x, xi, p, D), 0, 1; atol = 1e-3)[1]
+        val[i, j] = quadgk(x -> pG1_fun(x, xi, p, D), 0, 1; atol = 2e-3)[1]
       end
     end
   end
@@ -112,7 +126,7 @@ dG1 = function (x::Matrix{Float64}, p::Real)
     for j in 1:D
       xi = x[i, j]
       if !ismissing(xi)
-        val[i, j] = quadgk(x -> dG1_fun(x, xi, p, D), 1e-8, 1; atol = 1e-3)[1]
+        val[i, j] = quadgk(x -> dG1_fun(x, xi, p, D), 1e-6, 1; atol = 2e-3)[1]
       end
     end
   end
@@ -158,7 +172,7 @@ pGi = function (xi::Vector{Float64}, Sigma::Matrix{Float64}, p::Real, D::Integer
       ind_nna[i] = missing # check how missing values will be recorded in the data of interest
     end
   end
-  return quadgk(x -> pGi_fun(x, xi, Sigma, p, D, ind_nna), 0, 1; atol = 1e-3)[1]
+  return quadgk(x -> pGi_fun(x, xi, Sigma, p, D, ind_nna), 0, 1; atol = 2e-3)[1]
 end
 
 pGi_fun = function (prob::Real, xi::Vector{Float64}, Sigma::Matrix{Float64}, p::Real, D::Integer, ind_nna::Vector{Int64})
@@ -193,7 +207,7 @@ dGi = function (xi::Vector{Float64}, Sigma::Matrix{Float64}, p::Real, D::Integer
       ind_nna[i] = missing # check how missing values will be recorded in the data of interest
     end
   end
-  return quadgk(x -> dGi_fun(x, xi, p, Sigma, D, ind_nna, num_nna), 1e-8, 1; atol = 1e-3)[1]
+  return quadgk(x -> dGi_fun(x, xi, p, Sigma, D, ind_nna, num_nna), 1e-8, 1; atol = 2e-3)[1]
 end
 
 dGi_fun = function (prob::Real, xi::Vector{Float64}, p::Real, Sigma::Matrix{Float64}, D::Integer, ind_nna::Vector{Int64}, num_nna::Integer)
@@ -239,7 +253,7 @@ dGIi = function (xi::Vector{Float64}, I::Vector{Int64}, D::Integer, Sigma::Matri
   Sigma_IIc = permutedims(Sigma_IcI)
   mu_1 = Sigma_IcI * Sigma_II_m1 * xi[I]
   sig_1 = Sigma_IcIc .- Sigma_IcI * Sigma_II_m1 * Sigma_IIc
-  return quadgk(x -> dGIi_fun(x, xi, I, p, D, num_nna, nI, Sigma_II, mu_1, sig_1), 0, 1, atol = 1e-3)[1]
+  return quadgk(x -> dGIi_fun(x, xi, I, p, D, num_nna, nI, Sigma_II, mu_1, sig_1), 0, 1, atol = 2e-3)[1]
 end
 
 dGIi_fun = function (prob::Real, xi::Vector{Float64}, I::Vector{Int64}, p::Real, D::Integer, num_nna::Integer, nI::Integer, Sigma_II::Matrix{Float64}, mu_1::Vector{Float64}, sig_1::Matrix{Float64})
@@ -317,3 +331,4 @@ rC = function (n::Real, d::Real, Sigma::Matrix{Float64}, p::Real)
   return pG1(rG(n, d, Sigma, p), p)
 end
 
+end
