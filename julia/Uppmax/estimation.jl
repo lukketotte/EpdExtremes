@@ -8,6 +8,7 @@ using Distributed, SharedArrays
 dimension = 2
 nObs = nprocs()
 
+
 Random.seed!(321)
 true_par = [1.0, 1.0, 0.5] # lambda, nu, p
 coord = rand(dimension, 2)
