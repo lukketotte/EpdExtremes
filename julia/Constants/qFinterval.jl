@@ -4,7 +4,7 @@ export getInterval
 
 using JLD2 # for serializing data
 
-const dataPath = "./julia/constants/qFinterval.jld2"
+const dataPath = "./julia/Constants/qFinterval.jld2"
 intervals = load_object(dataPath)
 
 function getInterval(prob::Real, p::Real, d::Int; 
