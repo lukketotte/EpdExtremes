@@ -46,7 +46,7 @@ h(t::Real, x::Real, α::Real, β::Real) = x*t -β*tan(π*α/2) * t^α
 function pdf(d::AlphaStable, x::Real)
     α, β, σ, μ = params(d)
     x = (x-μ)/σ
-    (quadgk(t -> exp(-t^α)*cos(h(t, x + β*tan(π*α/2), α, β)), 0, Inf)[1])
+    quadgk(t -> exp(-t^α)*cos(h(t, x + β*tan(π*α/2), α, β)), 0, Inf; atol = 2e-3)[1]
 end
 
 logpdf(d::AlphaStable, x::Real) = log(pdf(d, x))

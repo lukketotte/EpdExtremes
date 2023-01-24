@@ -85,7 +85,7 @@ pG1 <- function(x, par, log = FALSE){ ### if x is a vector, output is a vector; 
 	n <- nrow(xmat)
 	D <- ncol(xmat)
 	fun <- function(p, x, par){
-		return( pnorm(sign(x) * exp(log(abs(x)) - qF(p, par, 1, T))) )
+		return( pnorm(sign(x) * exp(log(abs(x)) - log(qF(p, par, 1)))) )
 	}
 	val <- matrix(nrow = n, ncol = D)
 	for (i in 1:n){
