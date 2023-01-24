@@ -4,6 +4,6 @@
 .Ruserdata
 sim_pow_exp.R
 PowExpData.R
-.Rproj
+*.Rproj
 test.*
 .DS_store
