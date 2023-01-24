@@ -6,7 +6,7 @@ include("./FFT.jl")
 @everywhere using .MepdCopula, .Utils
 
 dimension = 2
-nObs = 1
+nObs = 4
 
 Random.seed!(321)
 true_par = [1.0, 1.0, 0.5] # lambda, nu, p
@@ -16,7 +16,7 @@ cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, 
 dat = rC(nObs, dimension, cor_mat, true_par[3])
 (n, D) = size(dat)
 
-@time x = optimize(x -> nllik(x, dat, coord, n, D, 1), true_par, NelderMead(), 
+@time x = optimize(x -> nllik(x, dat, coord, n, D, 4), true_par, NelderMead(), 
                    Optim.Options(g_tol = 2e-3, # default 1e-8
                                  show_trace = true,
                                  show_every = 1,
@@ -47,8 +47,8 @@ nllik = function (param::Vector{Float64}, dat::Matrix{Float64}, coord::Matrix{Fl
         return 1e+10
     end
 
-    nllik_res = Vector{Float64}(undef, ncores)
-    Threads.@threads for i in 1:ncores # ncores can be no larger than the number of observations
+    nllik_res = SharedVector{Float64}(ncores)
+    @sync @distributed for i in 1:ncores # ncores can be no larger than the number of observations
         nllik_res[i] = nllik_block(i, dat, param, Sigmab, n, ncores)
     end
     if any(isnan.(nllik_res))
@@ -58,7 +58,7 @@ nllik = function (param::Vector{Float64}, dat::Matrix{Float64}, coord::Matrix{Fl
     end
 end
 
-nllik_block = function (block::Integer, dat::Matrix{Float64}, param::Vector{Float64}, Sigmab::Matrix{Float64}, n::Integer, ncores::Integer)
+@everywhere nllik_block = function (block::Integer, dat::Matrix{Float64}, param::Vector{Float64}, Sigmab::Matrix{Float64}, n::Integer, ncores::Integer)
     if ncores > 1
         indmin = vcat(0.5, quantile(1:n, LinRange(1 / ncores, (ncores - 1) / ncores, ncores - 1)))[block]
         indmax = vcat(quantile(1:n, LinRange(1 / ncores, (ncores - 1) / ncores, ncores - 1)), n + 0.5)[block]

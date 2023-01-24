@@ -1,6 +1,8 @@
 module Utils
 
-using LinearAlgebra
+export cor_fun, cond_cor, dist_fun, same_vec, compute_I_nexc_nb_i
+
+using LinearAlgebra, Compat
 
 cor_fun = function (h::Matrix{Float64}, param::Vector{Float64})
     return exp.(-(h ./ exp(param[1])).^param[2])
