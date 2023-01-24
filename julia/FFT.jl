@@ -1,6 +1,6 @@
 module MepdCopula
 
-export rC, dC, pC, qF, pF
+export rC, dC, pC, qF, pF, pG, pG1
 
 using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions, StatsFuns, MvNormalCDF, Random, InvertedIndices
 include("./Constants/qFinterval.jl")
@@ -77,9 +77,17 @@ pG1 = function(x::Matrix{Float64}, p::Real)
     for j in 1:D
       xi = x[i, j]
       if !ismissing(xi)
-        val[i, j] = quadgk(x -> pG1_fun(x, xi, p, D), 0, 1; atol = 2e-3)[1]
+        val[i, j] = quadgk(x -> pG1_fun(x, xi, p, 1), 0, 1; atol = 2e-3)[1]
       end
     end
+  end
+  return val
+end
+
+pG1 = function(x::Vector{Float64}, p::Real)
+  val = similar(x)
+  for i in 1:length(x)
+    val[i] = !ismissing(x[i]) && quadgk(y -> pG1_fun(y, x[i], p, 1), 0, 1; atol = 2e-3)[1]
   end
   return val
 end

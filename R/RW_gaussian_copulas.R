@@ -49,12 +49,17 @@ qF = function(prob, par, d = 1, log = FALSE){
   }
   tryCatch(
     {
-      return(uniroot(f = Vectorize(fun), interval = c(0, upperPoint(par, d)), prob = prob, 
-                     par = par, d = d, maxiter = 50, tol = 1e-2)$root)   
+      val = uniroot(f = Vectorize(fun), interval = c(0, upperPoint(par, d)), prob = prob, 
+                     par = par, d = d, maxiter = 50, tol = 1e-2)$root 
     }, error = function(cond) {
-      return(uniroot(f = Vectorize(fun), interval = c(0, 100), prob = prob, par = par, d = d)$root)   
+      val = uniroot(f = Vectorize(fun), interval = c(0, 100), prob = prob, par = par, d = d)$root   
     }
   )
+  if(log){
+    return(log(val))
+  } else {
+    return(val)
+  }
 }
 
 
@@ -80,7 +85,7 @@ pG1 <- function(x, par, log = FALSE){ ### if x is a vector, output is a vector; 
 	n <- nrow(xmat)
 	D <- ncol(xmat)
 	fun <- function(p, x, par){
-		return( pnorm(sign(x) * exp(log(abs(x)) - qF(p, par, TRUE))) )
+		return( pnorm(sign(x) * exp(log(abs(x)) - qF(p, par, 1, T))) )
 	}
 	val <- matrix(nrow = n, ncol = D)
 	for (i in 1:n){
