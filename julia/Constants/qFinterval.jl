@@ -4,8 +4,7 @@ export getInterval
 
 using JLD2 # for serializing data
 
-const dataPath = "./julia/Constants/qFinterval.jld2"
-intervals = load_object(dataPath)
+intervals = load_object(joinpath(@__DIR__,"qFinterval.jld2"))
 
 function getInterval(prob::Real, p::Real, d::Int; 
   intervals::Vector{Vector{Dict{String, Any}}} = intervals)::Tuple{Float64, Float64}
