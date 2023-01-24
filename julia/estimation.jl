@@ -1,8 +1,8 @@
 using Distributed, SharedArrays
 
 @everywhere using Optim, Compat, LinearAlgebra, Statistics, Random, Dates
-include("./utils.jl")
-include("./FFT.jl")
+@everywhere include("./utils.jl")
+@everywhere include("./FFT.jl")
 @everywhere using .MepdCopula, .Utils
 
 dimension = 2
