@@ -2,11 +2,6 @@ module MepdCopula
 
 export rC, dC, pC, qF, pF, pG, dG, qG1
 
-"""
-OBS: most functions are defined as constants to alleviate compilation time
-"""
-
-
 using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions, StatsFuns, MvNormalCDF, Random, InvertedIndices
 include("./Constants/qFinterval.jl")
 using .QFinterval
@@ -359,7 +354,8 @@ rC = function(n::Real, d::Real, Sigma::Matrix{Float64}, p::Real)
   return pG1(rG(n, d, Sigma, p), p)
 end
 
-# OBS: ensures precompilation!
-pC([.23, .8], [1 0.2; 0.2 1], 0.7);
+# OBS: ensures  precompilation!
+dG([.23, .8], [1 0.2; 0.2 1], 0.7);
+pG([.23, .8], [1 0.2; 0.2 1], 0.7);
 
 end

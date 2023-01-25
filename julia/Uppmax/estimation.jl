@@ -6,7 +6,7 @@ using Distributed, SharedArrays
 @everywhere using .MepdCopula, .Utils
 
 dimension = 2
-nObs = nprocs()
+nObs = 2*nprocs()
 
 
 Random.seed!(321)
