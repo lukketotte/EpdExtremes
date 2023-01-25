@@ -194,7 +194,7 @@ pG <- function(x, Sigma, par, log = FALSE){ ### x is an nxD matrix; if x is a ve
 		ind.nna <- !is.na(xi)
 		fun <- function(p, par){
 			X <- matrix(xi[ind.nna], ncol = sum(ind.nna), nrow = length(p), byrow = TRUE)
-			return( apply(matrix(sign(X) * exp(log(abs(X)) - qF(p, par, TRUE)), ncol = sum(ind.nna)),1 , function(x) mvtnorm::pmvnorm(upper = x, sigma = Sigma[ind.nna,ind.nna])[1]) )
+			return( apply(matrix(sign(X) * exp(log(abs(X)) - qF(p, par, nrow(Sigma),TRUE)), ncol = sum(ind.nna)),1 , function(x) mvtnorm::pmvnorm(upper = x, sigma = Sigma[ind.nna,ind.nna])[1]) )
 		}
 		val <- integrate(f = Vectorize(fun), lower = 0, upper = 1, par = par, rel.tol = 10^(-1), stop.on.error = FALSE)$value
 		return(val)

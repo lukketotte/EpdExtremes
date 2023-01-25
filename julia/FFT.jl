@@ -1,6 +1,6 @@
 module MepdCopula
 
-export rC, dC, pC, qF, pF, pG, dG
+export rC, dC, pC, qF, pF, pG, dG, qG1
 
 """
 OBS: most functions are defined as constants to alleviate compilation time
@@ -101,7 +101,7 @@ pG1(x::Vector{Float64}, p::Real) = pG1const(reshape(x, (1,length(x))),p)
 ##
 
 # Marginal quantile function
-qG1 = function(prob::Matrix{Float64}, p::Real)
+qG1const = function(prob::Matrix{Float64}, p::Real)
   (n, D) = size(prob)
   val = Matrix{Float64}(undef, n, D)
   for i in 1:n
@@ -122,6 +122,9 @@ qG1 = function(prob::Matrix{Float64}, p::Real)
   end
   return val
 end
+
+qG1(prob::Matrix{Float64}, p::Real) = qG1const(prob,p)
+qG1(prob::Vector{Float64}, p::Real) = qG1const(reshape(prob, (1,length(prob))),p)
 
 qG1_fun = function(x::Real, prob::Real, p::Real)
   x_mat = reshape([x], 1, 1)
@@ -243,7 +246,6 @@ dGi_fun = function(prob::Real, xi::Vector{Float64}, p::Real, Sigma::Matrix{Float
 end
 ##
 
-
 # Partial derivatives of the distribution function
 dGI = function(x::Matrix{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float64}, p::Real) # x a matrix, I a vector of vectors of indices of threshold exceedances for eahc row of x
   (n, D) = size(x)
@@ -319,16 +321,21 @@ end
 ###################################################################################################################################
 
 # Copula distribution (CDF)
-pC = function(u::Matrix{Float64}, Sigma::Matrix{Float64}, p::Real) # u should be a vector of U(0,1)
+pCconst = function(u::Matrix{Float64}, Sigma::Matrix{Float64}, p::Real) # u should be a vector of U(0,1)
   return pG(qG1(u, p), Sigma, p)
 end
 
+pC(u::Matrix{Float64}, Sigma::Matrix{Float64}, p::Real) = pCconst(u,Sigma,p)
+pC(u::Vector{Float64}, Sigma::Matrix{Float64}, p::Real) = pCconst(reshape(u, (1,size(Sigma,1))),Sigma,p)
+
 # Copula density (PDF)
-dC = function(u::Matrix{Float64}, Sigma::Matrix{Float64}, p::Real)
+dCconst = function(u::Matrix{Float64}, Sigma::Matrix{Float64}, p::Real)
   qG1_val = qG1(u, p)
   return dG(qG1_val, Sigma, p) .- sum(dG1(qG1_val, p), dims = 2)
 end
 
+dC(u::Matrix{Float64}, Sigma::Matrix{Float64}, p::Real) = dCconst(u,Sigma,p)
+dC(u::Vector{Float64}, Sigma::Matrix{Float64}, p::Real) = dCconst(reshape(u, (1,size(Sigma,1))),Sigma,p)
 
 # Partial derivatives of the copula distribution C
 dCI = function(u::Matrix{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float64}, p::Real)
@@ -351,5 +358,8 @@ end
 rC = function(n::Real, d::Real, Sigma::Matrix{Float64}, p::Real)
   return pG1(rG(n, d, Sigma, p), p)
 end
+
+# OBS: ensures precompilation!
+pC([.23, .8], [1 0.2; 0.2 1], 0.7);
 
 end
