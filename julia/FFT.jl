@@ -51,7 +51,7 @@ qF = function(prob::Real, p::Real, d::Integer)
         end
         find_zero(x -> qF₁(x, prob, p, d), (1e-3, upper), xatol = 2e-3)
       catch e
-        throw(DomainError((prob, p, d), " argument gives bracketing error"))
+        throw(DomainError((prob, p, d), ": bracketing error with endpoint $upper"))
       end
     end
   end
