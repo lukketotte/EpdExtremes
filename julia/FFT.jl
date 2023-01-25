@@ -235,9 +235,9 @@ dGi_fun = function(prob::Real, xi::Vector{Float64}, p::Real, Sigma::Matrix{Float
   log_qF = log(qF(prob, p, D))
   X = sign.(xi[ind_nna]) .* exp.(log.(abs.(xi[ind_nna])) .- log_qF)
   if length(X) == 1
-    val = exp(pdf(LogNormal(Sigma[1]), X[1]) .- num_nna * log_qF)
+    val = exp(logpdf(Normal(Sigma[1]), X[1]) .- num_nna * log_qF)
   else
-    val = exp(pdf(MvLogNormal(Sigma[ind_nna, ind_nna]), X) .- num_nna * log_qF)
+    val = exp(logpdf(MvNormal(Sigma[ind_nna, ind_nna]), X) .- num_nna * log_qF)
   end
   return val
 end
