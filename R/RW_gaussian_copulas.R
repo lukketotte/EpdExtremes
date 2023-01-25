@@ -216,7 +216,7 @@ dG <- function(x, Sigma, par, log = FALSE){
 		ind.nna <- !is.na(xi)
 		fun <- function(p, par){
 			X <- matrix(xi[ind.nna], ncol = sum(ind.nna), nrow = length(p), byrow = TRUE)
-			log.qF <- qF(p, par, TRUE)
+			log.qF <- qF(p, par, nrow(Sigma), TRUE)
 			return(exp(mvtnorm::dmvnorm(sign(X) * exp(log(abs(X)) - log.qF), sigma = Sigma[ind.nna, ind.nna], log = TRUE) - sum(ind.nna) * log.qF))
 		}
 		val <- integrate(f = Vectorize(fun), lower = 0, upper = 1, par = par, rel.tol = 10^(-1), stop.on.error = FALSE)$value
