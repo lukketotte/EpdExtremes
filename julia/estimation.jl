@@ -5,8 +5,8 @@ using Distributed, SharedArrays
 @everywhere include("./FFT.jl")
 @everywhere using .MepdCopula, .Utils
 
-dimension = 2
-nObs = 4
+dimension = 5
+nObs = 2
 
 Random.seed!(321)
 true_par = [1.0, 1.0, 0.5] # lambda, nu, p
@@ -16,7 +16,7 @@ cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, 
 dat = rC(nObs, dimension, cor_mat, true_par[3])
 (n, D) = size(dat)
 
-@time x = optimize(x -> nllik(x, dat, coord, n, D, 4), true_par, NelderMead(), 
+@time x = optimize(x -> nllik(x, dat, coord, n, D, 2), true_par, NelderMead(), 
                    Optim.Options(g_tol = 2e-3, # default 1e-8
                                  show_trace = true,
                                  show_every = 1,
