@@ -6,7 +6,7 @@ using Distributed, SharedArrays, JLD2
 @everywhere using .MepdCopula, .Utils
 
 dimension = 2
-nObs = 2*nprocs()
+nObs = 4*nprocs()
 
 
 Random.seed!(321)
