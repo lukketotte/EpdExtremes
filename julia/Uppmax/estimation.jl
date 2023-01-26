@@ -1,4 +1,4 @@
-using Distributed, SharedArrays
+using Distributed, SharedArrays, JLD2
 
 @everywhere using Optim, Compat, LinearAlgebra, Statistics, Random, Dates
 @everywhere include("../utils.jl")
@@ -52,7 +52,7 @@ end
     return -sum(contrib)
 end
 
-x = optimize(x -> nllik(x, dat, coord, n, D, nprocs()), true_par, NelderMead(), 
+x = optimize(x -> nllik(x, dat, coord, n, D, nprocs()), true_par, GradientDescent(), 
                    Optim.Options(g_tol = 2e-3, # default 1e-8
                                  show_trace = true,
                                  show_every = 1,
