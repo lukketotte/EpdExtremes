@@ -38,31 +38,31 @@ end
   for p in shapes
     println("p = $p")
     if p == 0.95
-      x = range(0.1, u_95, length = 1500);
+      x = range(0.01, u_95, length = 1500);
       y = pF.(x, 0.95, dims[i]);
       y2 = pF.(x, 0.99, dims[i]);
     elseif p == 0.9
-      x = range(0.1, u_9, length = 1500);
+      x = range(0.01, u_9, length = 1500);
       y = pF.(x, 0.9, dims[i]);
       y2 = pF.(x, 0.95, dims[i]);
     elseif p == 0.8
-      x = range(0.1, u_8, length = 2000);
+      x = range(0.01, u_8, length = 2000);
       y = pF.(x, 0.8, dims[i]);
       y2 = pF.(x, 0.9, dims[i]);
     elseif p == 0.7
-      x = range(0.1, u_7, length = 2000);
+      x = range(0.01, u_7, length = 2000);
       y = pF.(x, 0.7, dims[i]);
       y2 = pF.(x, 0.8, dims[i]);
     elseif p == 0.6
-      x = range(0.1, u_6, length = 2000);
+      x = range(0.01, u_6, length = 2000);
       y = pF.(x, 0.6, dims[i]);
       y2 = pF.(x, 0.7, dims[i]);
     elseif p == 0.5
-      x = range(0.1, u_5, length = 2500);
+      x = range(0.01, u_5, length = 2500);
       y = pF.(x, 0.5, dims[i]);
       y2 = pF.(x, 0.6, dims[i]);
     else
-      x = range(0.1, u_4, length = 3500);
+      x = range(0.01, u_4, length = 3500);
       y = pF.(x, 0.4, dims[i]);
       y2 = pF.(x, 0.5, dims[i]);
     end
