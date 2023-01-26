@@ -39,7 +39,7 @@ qF = function(prob::Real, p::Real, d::Integer)
   try
     find_zero(x -> qF₁(x, prob, p, d), getInterval(prob, p, d) .+ (0., 1.), xatol=2e-3)
   catch e
-    println("wtf: $prob, $p, $d")
+    #println("wtf: $prob, $p, $d")
     if isa(e, DomainError) || isa(e, ArgumentError)
       try
         if p > 0.95
