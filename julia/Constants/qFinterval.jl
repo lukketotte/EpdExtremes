@@ -32,15 +32,15 @@ end
 function sortByShape(p::Real)::Int64
   if p > 0.95
     return 1
-  elseif p > 0.9
+  elseif p >= 0.9
     return 2
-  elseif p > 0.8
+  elseif p >= 0.8
     return 3
-  elseif p > 0.7
+  elseif p >= 0.7
     return 4
-  elseif p > 0.6
+  elseif p >= 0.6
     return 5
-  elseif p > 0.5
+  elseif p >= 0.5
     return 6
   elseif p >= 0.4
     return 7

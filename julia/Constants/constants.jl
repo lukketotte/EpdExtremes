@@ -26,7 +26,7 @@ end
   quadgk(x -> dF(x,p,d), 0, x)[1]
 end
 
-@everywhere u_95, u_9, u_8, u_7, u_6, u_5, u_4 = 1.45, 1.52, 2.12, 3.44, 5.92, 20, 75;
+@everywhere u_95, u_9, u_8, u_7, u_6, u_5, u_4 = 2., 3., 4., 6., 8., 20., 90.;
 
 # recreate d1 as forloop
 @everywhere shapes = [0.95, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4]
@@ -78,7 +78,7 @@ end
       )
     ])
   end
-  dims[i] |> x -> jldsave("./julia/d$x.jld"; d)
+  dims[i] |> x -> jldsave("./julia/d$x.jld2"; d)
 end
 
 
@@ -88,4 +88,5 @@ d6 = load_object("./julia/Constants/d4.jld2");
 d8 = load_object("./julia/Constants/d6.jld2");
 d10 = load_object("./julia/Constants/d10.jld2");
 d15 = load_object("./julia/Constants/d15.jld2");
-[d1, d2, d4, d6, d10, d15] |> d -> jldsave("./julia/qFinterval.jld2"; d);
+
+[d2, d4, d6, d8, d10, d15] |> d -> jldsave("./julia/qFinterval.jld2"; d);
