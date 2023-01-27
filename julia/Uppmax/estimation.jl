@@ -52,8 +52,8 @@ end
     return -sum(contrib)
 end
 
-x = optimize(x -> nllik(x, dat, coord, n, D, nprocs()), true_par, GradientDescent(), 
-                   Optim.Options(g_tol = 2e-3, # default 1e-8
+x = optimize(x -> nllik(x, dat, coord, n, D, nprocs()), true_par, NelderMead(), 
+                   Optim.Options(g_tol = 1e-4, # default 1e-8
                                  show_trace = true,
                                  show_every = 1,
                                  extended_trace = true)

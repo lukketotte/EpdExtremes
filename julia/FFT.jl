@@ -1,6 +1,6 @@
 module MepdCopula
 
-export rC, dC, pC, qF, pF, pG, dG, qG1
+export rC, dC, pC, qF, pF, rF, dF, pG, dG, qG1
 
 using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions, StatsFuns, MvNormalCDF, Random, InvertedIndices
 include("./Constants/qFinterval.jl")
@@ -17,7 +17,7 @@ function V(α::Real, θ::Real)
 end
 
 h(θ::Real, x::Real, α::Real) = (x-ζ(α))^(α/(α-1))*V(α,θ)*exp(-(x-ζ(α))^(α/(α-1))*V(α,θ))
-f(x::Real, α::Real) = α/(π*(x-ζ(α))*abs(α-1)) * quadgk(θ -> h(θ, x, α), -θ₀(α), α <= 0.95 ? π/2 : 1.57; atol = 2e-3)[1]
+f(x::Real, α::Real) = α/(π*(x-ζ(α))*abs(α-1)) * quadgk(θ -> h(θ, x, α), -θ₀(α), α <= 0.95 ? π/2 : 1.570; atol = (α > 0.9 ? 0 : 1e-3))[1]
 dstable(x::Real, α::Real, γ::Real) = f((x-γ * tan(π*α/2))/γ, α)/γ
 
 dF = function(x::Real, p::Real, d::Int)
@@ -28,30 +28,29 @@ dF = function(x::Real, p::Real, d::Int)
 end
 
 pF = function (x::Real, p::Real, d::Int)
-  quadgk(x -> dF(x,p,d), 0, x; atol = 2e-3)[1]
+  quadgk(x -> dF(x,p,d), 0, x; atol = (p > 0.9 ? 0 : 1e-3))[1]
 end
 
 qF₁(x::Real, prob::Real, p::Real, d::Integer) = pF(x, p, d) - prob
 
-
 qF = function(prob::Real, p::Real, d::Integer)
   prob > 0 && prob < 1 || throw(DomainError(prob, "must be on (0,1)"))
   try
-    find_zero(x -> qF₁(x, prob, p, d), getInterval(prob, p, d) .+ (0., 1.), xatol=2e-3)
+    find_zero(x -> qF₁(x, prob, p, d), getInterval(prob, p, d) .+ (0., 1.5), xatol=2e-3)
   catch e
-    #println("wtf: $prob, $p, $d")
+    println("wtf: $prob, $p, $d")
     if isa(e, DomainError) || isa(e, ArgumentError)
+      if p > 0.95
+        upper = 4
+      elseif p <= 0.3
+        upper = 10000
+      else
+        upper = 100
+      end
       try
-        if p > 0.95
-          upper = 4
-        elseif p <= 0.3
-          upper = 10000
-        else
-          upper = 100
-        end
         find_zero(x -> qF₁(x, prob, p, d), (1e-3, upper), xatol = 2e-3)
       catch e
-        throw(DomainError((prob, p, d), ": bracketing error with endpoint $upper"))
+        throw(DomainError((prob, p, d), " fails with $upper"))
       end
     end
   end
