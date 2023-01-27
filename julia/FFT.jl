@@ -325,7 +325,7 @@ pC(u::Vector{Float64}, Sigma::Matrix{Float64}, p::Real) = pCconst(reshape(u, (1,
 # Copula density (PDF)
 dCconst = function(u::Matrix{Float64}, Sigma::Matrix{Float64}, p::Real)
   qG1_val = qG1(u, p)
-  return dG(qG1_val, Sigma, p) .- sum(dG1(qG1_val, p), dims = 2)
+  return log.(dG(qG1_val, Sigma, p)) .- sum(log.(dG1(qG1_val, p)), dims = 2)
 end
 
 dC(u::Matrix{Float64}, Sigma::Matrix{Float64}, p::Real) = dCconst(u,Sigma,p)
