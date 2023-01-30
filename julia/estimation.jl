@@ -6,7 +6,7 @@ using Distributed, SharedArrays
 @everywhere using .MepdCopula, .Utils
 
 dimension = 4
-nObs = 12
+nObs = 6*7
 
 Random.seed!(321)
 true_par = [1.0, 1.0, 0.6] # lambda, nu, p
