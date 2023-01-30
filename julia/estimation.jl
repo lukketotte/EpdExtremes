@@ -5,11 +5,11 @@ using Distributed, SharedArrays
 @everywhere include("./FFT.jl")
 @everywhere using .MepdCopula, .Utils
 
-dimension = 2
-nObs = 5
+dimension = 4
+nObs = 42
 
 Random.seed!(321)
-true_par = [1.0, 1.0, 0.75] # lambda, nu, p
+true_par = [1.0, 1.0, 0.6] # lambda, nu, p
 coord = rand(dimension, 2)
 dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
 cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)

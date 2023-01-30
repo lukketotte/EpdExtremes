@@ -1,6 +1,6 @@
 module MepdCopula
 
-export rC, dC, pC, qF, pF, rF, dF, pG, dG, qG1
+export rC, dC, pC, qF, pF, rF, dF, pG, dG, qG1, rG, dG1
 
 using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions, StatsFuns, MvNormalCDF, Random, InvertedIndices
 include("./Constants/qFinterval.jl")
@@ -38,7 +38,7 @@ qF = function(prob::Real, p::Real, d::Integer)
   try
     find_zero(x -> qF₁(x, prob, p, d), getInterval(prob, p, d) .+ (0., 1.5), xatol=2e-3)
   catch e
-    println("wtf: $prob, $p, $d")
+    #println("wtf: $prob, $p, $d")
     if isa(e, DomainError) || isa(e, ArgumentError)
       if p > 0.95
         upper = 4
@@ -85,7 +85,7 @@ pG1const = function (x::Matrix{Float64}, p::Real)
 end
 
 pG1_fun = function(prob::Real, x::Real, p::Real, d::Int)
-  return StatsFuns.normcdf(0.0, 1.0, sign(x) * exp( log(abs(x)) - log(qF(prob, p, d)) ))
+  return StatsFuns.normcdf(0.0, 1.0, sign(x) * exp( log(abs(x)) - log(qF(prob, p, d))))
 end
 
 pG1(x::Matrix{Float64}, p::Real) = pG1const(x,p)
@@ -134,7 +134,7 @@ dG1 = function(x::Matrix{Float64}, p::Real)
     for j in 1:D
       xi = x[i, j]
       if !ismissing(xi)
-        val[i, j] = quadgk(x -> dG1_fun(x, xi, p, D), 1e-6, 1; atol = 2e-3)[1]
+        val[i, j] = quadgk(x -> dG1_fun(x, xi, p, D), 1e-6, 1; atol = 1e-4)[1]
       end
     end
   end
@@ -143,7 +143,7 @@ end
 
 dG1_fun = function(prob::Real, x::Real, p::Real, d::Integer)
   log_qF = log( qF(prob, p, d) )
-  return exp( StatsFuns.normlogcdf(0.0, 1.0, sign(x) * exp(log(abs(x)) - log_qF) - log_qF) )
+  return exp(logpdf(Normal(), sign(x) * exp(log(abs(x)) - log_qF)) - log_qF)
 end
 ##
 
@@ -327,6 +327,10 @@ dCconst = function(u::Matrix{Float64}, Sigma::Matrix{Float64}, p::Real)
   qG1_val = qG1(u, p)
   return log.(dG(qG1_val, Sigma, p)) .- sum(log.(dG1(qG1_val, p)), dims = 2)
 end
+"""dCconst = function(u::Matrix{Float64}, Sigma::Matrix{Float64}, p::Real)
+  qG1_val = qG1(u, p)
+  return log.(dG(u, Sigma, p)) .- sum(log.(dG1(u, p)), dims = 2)
+end"""
 
 dC(u::Matrix{Float64}, Sigma::Matrix{Float64}, p::Real) = dCconst(u,Sigma,p)
 dC(u::Vector{Float64}, Sigma::Matrix{Float64}, p::Real) = dCconst(reshape(u, (1,size(Sigma,1))),Sigma,p)
