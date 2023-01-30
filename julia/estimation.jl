@@ -6,7 +6,7 @@ using Distributed, SharedArrays
 @everywhere using .MepdCopula, .Utils
 
 dimension = 4
-nObs = 42
+nObs = 12
 
 Random.seed!(321)
 true_par = [1.0, 1.0, 0.6] # lambda, nu, p
@@ -16,7 +16,7 @@ cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, 
 dat = rC(nObs, dimension, cor_mat, true_par[3])
 (n, D) = size(dat)
 
-@time x = optimize(x -> nllik(x, dat, coord, n, D, 3), true_par, NelderMead(), 
+@time x = optimize(x -> nllik(x, dat, coord, n, D, 6), true_par, NelderMead(), 
                    Optim.Options(g_tol = 2e-3, # default 1e-8
                                  show_trace = true,
                                  show_every = 1,

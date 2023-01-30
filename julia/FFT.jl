@@ -327,10 +327,6 @@ dCconst = function(u::Matrix{Float64}, Sigma::Matrix{Float64}, p::Real)
   qG1_val = qG1(u, p)
   return log.(dG(qG1_val, Sigma, p)) .- sum(log.(dG1(qG1_val, p)), dims = 2)
 end
-"""dCconst = function(u::Matrix{Float64}, Sigma::Matrix{Float64}, p::Real)
-  qG1_val = qG1(u, p)
-  return log.(dG(u, Sigma, p)) .- sum(log.(dG1(u, p)), dims = 2)
-end"""
 
 dC(u::Matrix{Float64}, Sigma::Matrix{Float64}, p::Real) = dCconst(u,Sigma,p)
 dC(u::Vector{Float64}, Sigma::Matrix{Float64}, p::Real) = dCconst(reshape(u, (1,size(Sigma,1))),Sigma,p)
