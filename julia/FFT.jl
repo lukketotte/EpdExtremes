@@ -48,7 +48,7 @@ qF = function(prob::Real, p::Real, d::Integer)
         upper = 100
       end
       try
-        find_zero(x -> qF₁(x, prob, p, d), (1e-3, upper), xatol = 2e-3)
+        find_zero(x -> qF₁(x, prob, p, d), (1e-4, upper), xatol = 2e-3)
       catch e
         throw(DomainError((prob, p, d), " fails with $upper"))
       end
@@ -108,7 +108,7 @@ qG1const = function(prob::Matrix{Float64}, p::Real)
           if prob_i >= 1
             val[i, j] = Inf
           else
-            val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), (-100, 100))
+            val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), (-10^2, 10^2))
           end
         end
       end

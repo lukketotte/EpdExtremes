@@ -6,15 +6,18 @@ using Distributed, SharedArrays
 @everywhere using .MepdCopula, .Utils
 
 dimension = 4
-nObs = 6*7
+nObs = 6*5
 
 Random.seed!(321)
-true_par = [1.0, 1.0, 0.6] # lambda, nu, p
+true_par = [log(2.0), 1, 0.2] # lambda, nu, p
 coord = rand(dimension, 2)
 dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
 cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
 dat = rC(nObs, dimension, cor_mat, true_par[3])
 (n, D) = size(dat)
+
+dat
+cor_mat
 
 @time x = optimize(x -> nllik(x, dat, coord, n, D, 6), true_par, NelderMead(), 
                    Optim.Options(g_tol = 2e-3, # default 1e-8
