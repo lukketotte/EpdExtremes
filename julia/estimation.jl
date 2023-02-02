@@ -27,7 +27,7 @@ dat = rC(nObs, dimension, cor_mat, true_par[3])
 #############################################
 # uncensored powered exponential
 #############################################
-copula_nocens = function (dat::Matrix{Float64}, coord::Matrix{Float64}, init_val::Vector{Float64}, ncores::Integer)
+function copula_nocens(dat::Matrix{Float64}, coord::Matrix{Float64}, init_val::Vector{Float64}, ncores::Integer)
     # 2023-01-11, 13:10 - assuming data is complete for now. add checks for missing values later
     (n, D) = size(dat)
 
@@ -36,7 +36,7 @@ copula_nocens = function (dat::Matrix{Float64}, coord::Matrix{Float64}, init_val
     return [opt_res.Minimizer, opt_res.Minimum, opt_res.Iterations]
 end
 
-nllik = function (param::Vector{Float64}, dat::Matrix{Float64}, coord::Matrix{Float64}, n::Integer, D::Integer, ncores::Integer)
+function nllik(param::Vector{Float64}, dat::Matrix{Float64}, coord::Matrix{Float64}, n::Integer, D::Integer, ncores::Integer)
     if !cond_cor(param) # check conditions on parameters
         return 1e+10
     end
@@ -48,7 +48,7 @@ nllik = function (param::Vector{Float64}, dat::Matrix{Float64}, coord::Matrix{Fl
         return 1e+10
     end
 
-    nllik_res = SharedVector{Float64}(ncores)
+    nllik_res = SharedArray{Float64}(ncores)
     @sync @distributed for i in 1:ncores # ncores can be no larger than the number of observations
         nllik_res[i] = nllik_block(i, dat, param, Sigmab, n, ncores)
     end
@@ -59,7 +59,7 @@ nllik = function (param::Vector{Float64}, dat::Matrix{Float64}, coord::Matrix{Fl
     end
 end
 
-@everywhere nllik_block = function (block::Integer, dat::Matrix{Float64}, param::Vector{Float64}, Sigmab::Matrix{Float64}, n::Integer, ncores::Integer)
+@everywhere function nllik_block(block::Integer, dat::Matrix{Float64}, param::Vector{Float64}, Sigmab::Matrix{Float64}, n::Integer, ncores::Integer)
     if ncores > 1
         indmin = vcat(0.5, quantile(1:n, LinRange(1 / ncores, (ncores - 1) / ncores, ncores - 1)))[block]
         indmax = vcat(quantile(1:n, LinRange(1 / ncores, (ncores - 1) / ncores, ncores - 1)), n + 0.5)[block]
@@ -67,7 +67,7 @@ end
     elseif ncores == 1
         ind_block = 1:n
     end
-    contrib = dC(reshape(dat[ind_block, :], length(ind_block), D), Sigmab, param[3])
+    contrib = dC(reshape(dat[ind_block, :], length(ind_block), size(Sigmab, 1)), Sigmab, param[3])
     return -sum(contrib)
 end
 
