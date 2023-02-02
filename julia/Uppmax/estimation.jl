@@ -5,8 +5,8 @@ using Distributed, SharedArrays, JLD2
 @everywhere include("../FFT.jl")
 @everywhere using .MepdCopula, .Utils
 
-dimension = 2
-nObs = 4*nprocs()
+dimension = 4
+nObs = 7*nprocs()
 
 
 Random.seed!(321)
@@ -52,7 +52,7 @@ end
     return -sum(contrib)
 end
 
-x = optimize(x -> nllik(x, dat, coord, n, D, nprocs()), true_par, NelderMead(), 
+x = optimize(x -> nllik(x, dat, coord, n, D, nprocs()), true_par, GradientDescent(), 
                    Optim.Options(g_tol = 1e-4, # default 1e-8
                                  show_trace = true,
                                  show_every = 1,
