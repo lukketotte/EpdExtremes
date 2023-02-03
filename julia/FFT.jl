@@ -308,7 +308,7 @@ end
 ##
 
 # Random generator from the joint distribution G
-rG(n::Integer, d::Integer, Sigma::Matrix{Float64}, p::Real)
+function rG(n::Integer, d::Integer, Sigma::Matrix{Float64}, p::Real)
   R = rF(n, p, d)
   W = rand(MvNormal(Sigma), n)
   return R .* permutedims(W)
@@ -354,7 +354,7 @@ end
 
 # Random generator from the copula
 function rC(n::Integer, d::Real, Sigma::Matrix{Float64}, p::Real)
-  return pG1(rG(n, Sigma, par), p)
+  return pG1(rG(n, d, Sigma, p), p)
 end
 
 # OBS: ensures  precompilation!

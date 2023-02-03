@@ -4,9 +4,8 @@ using Distributed, SharedArrays
 @everywhere include("./utils.jl")
 @everywhere include("./FFT.jl")
 @everywhere using .MepdCopula, .Utils
-
 dimension = 2
-nObs = 6*40
+nObs = 6*2
 
 Random.seed!(321)
 true_par = [log(1.0), 1, 0.55] # lambda, nu, p
@@ -17,7 +16,7 @@ dat = rC(nObs, dimension, cor_mat, true_par[3])
 (n, D) = size(dat)
 
 
-@time x = optimize(x -> nllik(x, dat, coord, n, D, 6), [log(1.4), 1.1, 0.6], GradientDescent(), 
+@time x = optimize(x -> nllik(x, dat, coord, n, D, 6), true_par, NelderMead(), 
                    Optim.Options(g_tol = 2e-3, # default 1e-8
                                  show_trace = true,
                                  show_every = 1,

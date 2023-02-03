@@ -6,10 +6,10 @@ using Distributed, SharedArrays
 @everywhere using .HuserCopula, .Utils
 
 dimension = 2
-nObs = 250
+nObs = 100
 
 Random.seed!(321)
-true_par = [log(2.0), 1, 0.55, 1.] # lambda, nu, p
+true_par = [log(2.0), 1, 1., 1.] # lambda, nu, p
 coord = rand(dimension, 2)
 dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
 cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
@@ -25,6 +25,7 @@ dat = rC(nObs, cor_mat, true_par)
 
 x.minimizer
 x.minimum
+
 
 
 function nllik(param::Vector{Float64}, dat::Matrix{Float64}, coord::Matrix{Float64}, n::Integer, D::Integer, ncores::Integer)
@@ -58,6 +59,18 @@ end
   elseif ncores == 1
       ind_block = 1:n
   end
-  contrib = dC(reshape(dat[ind_block, :], length(ind_block), size(Sigmab, 1)), Sigmab, param)
+  contrib = dC(reshape(dat[ind_block, :], length(ind_block), size(Sigmab, 1)), Sigmab, param[3:4])
   return -sum(contrib)
 end
+
+##
+using Plots
+
+β = range(0.6, 1.4, length = 20)
+res = zeros(Float64, 20)
+for i in eachindex(res)
+  res[i] = nllik([1.41, 0.44, β[i], 0.3], dat, coord, n, D, 5)
+end
+
+
+plot(β, res)
