@@ -108,7 +108,11 @@ qG1const = function(prob::Matrix{Float64}, p::Real)
           if prob_i >= 1
             val[i, j] = Inf
           else
-            val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), (-10^2, 10^2))
+            try
+              val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), (-15, 15))
+            catch e
+              val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), (-100, 100))
+            end
           end
         end
       end
@@ -304,7 +308,7 @@ end
 ##
 
 # Random generator from the joint distribution G
-rG = function(n::Integer, d::Integer, Sigma::Matrix{Float64}, p::Real)
+rG(n::Integer, d::Integer, Sigma::Matrix{Float64}, p::Real)
   R = rF(n, p, d)
   W = rand(MvNormal(Sigma), n)
   return R .* permutedims(W)
@@ -349,8 +353,8 @@ dCI_fun = function(u_i::Vector{Float64}, I_i::Vector{Int64}, p::Real)
 end
 
 # Random generator from the copula
-rC = function(n::Real, d::Real, Sigma::Matrix{Float64}, p::Real)
-  return pG1(rG(n, d, Sigma, p), p)
+function rC(n::Integer, d::Real, Sigma::Matrix{Float64}, p::Real)
+  return pG1(rG(n, Sigma, par), p)
 end
 
 # OBS: ensures  precompilation!
