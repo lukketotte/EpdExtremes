@@ -1,6 +1,6 @@
 module MepdCopula
 
-export rC, dC, pC, qF, pF, rF, dF, pG, dG, qG1
+export rC, dC, pC, qF, pF, rF, dF, pG, dG, qG1, rG, dG1
 
 using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions, StatsFuns, MvNormalCDF, Random, InvertedIndices
 include("./Constants/qFinterval.jl")
@@ -38,7 +38,7 @@ qF = function(prob::Real, p::Real, d::Integer)
   try
     find_zero(x -> qF₁(x, prob, p, d), getInterval(prob, p, d) .+ (0., 1.5), xatol=2e-3)
   catch e
-    println("wtf: $prob, $p, $d")
+    #println("wtf: $prob, $p, $d")
     if isa(e, DomainError) || isa(e, ArgumentError)
       if p > 0.95
         upper = 4
@@ -48,7 +48,7 @@ qF = function(prob::Real, p::Real, d::Integer)
         upper = 100
       end
       try
-        find_zero(x -> qF₁(x, prob, p, d), (1e-3, upper), xatol = 2e-3)
+        find_zero(x -> qF₁(x, prob, p, d), (1e-4, upper), xatol = 2e-3)
       catch e
         throw(DomainError((prob, p, d), " fails with $upper"))
       end
@@ -85,7 +85,7 @@ pG1const = function (x::Matrix{Float64}, p::Real)
 end
 
 pG1_fun = function(prob::Real, x::Real, p::Real, d::Int)
-  return StatsFuns.normcdf(0.0, 1.0, sign(x) * exp( log(abs(x)) - log(qF(prob, p, d)) ))
+  return StatsFuns.normcdf(0.0, 1.0, sign(x) * exp( log(abs(x)) - log(qF(prob, p, d))))
 end
 
 pG1(x::Matrix{Float64}, p::Real) = pG1const(x,p)
@@ -108,7 +108,7 @@ qG1const = function(prob::Matrix{Float64}, p::Real)
           if prob_i >= 1
             val[i, j] = Inf
           else
-            val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), (-100, 100))
+            val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), (-10^2, 10^2))
           end
         end
       end
@@ -134,7 +134,7 @@ dG1 = function(x::Matrix{Float64}, p::Real)
     for j in 1:D
       xi = x[i, j]
       if !ismissing(xi)
-        val[i, j] = quadgk(x -> dG1_fun(x, xi, p, D), 1e-6, 1; atol = 2e-3)[1]
+        val[i, j] = quadgk(x -> dG1_fun(x, xi, p, D), 1e-6, 1; atol = 1e-4)[1]
       end
     end
   end
@@ -143,7 +143,7 @@ end
 
 dG1_fun = function(prob::Real, x::Real, p::Real, d::Integer)
   log_qF = log( qF(prob, p, d) )
-  return exp( StatsFuns.normlogcdf(0.0, 1.0, sign(x) * exp(log(abs(x)) - log_qF) - log_qF) )
+  return exp(logpdf(Normal(), sign(x) * exp(log(abs(x)) - log_qF)) - log_qF)
 end
 ##
 

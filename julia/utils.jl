@@ -9,7 +9,7 @@ cor_fun = function (h::Matrix{Float64}, param::Vector{Float64})
 end
 
 cond_cor = function (param::Vector{Float64})
-    return param[2] > 0 && param[2] < 2 && param[3] > 0.35 && param[3] < 0.95
+    return param[2] > 0 && param[2] < 2 && param[3] >= 0.3 && param[3] < 0.95
 end
 
 dist_fun(coord_vec::Vector{Float64}) = permutedims(vec(permutedims(mapreduce(permutedims, vcat, vcat([coord_vec for i in eachindex(coord_vec)])))-mapreduce(permutedims, vcat, vcat([coord_vec for i in eachindex(coord_vec)]))))
