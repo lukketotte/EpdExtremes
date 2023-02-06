@@ -10,7 +10,7 @@ end
 
 cond_cor = function (param::Vector{Float64})
     if length(param) == 3
-        return param[2] > 0 && param[2] < 2 && param[3] >= 0.3 && param[3] < 0.97
+        return param[2] > 0 && param[2] < 2 && param[3] >= 0.15 && param[3] < 0.97
     else
         return param[2] > 0 && param[2] < 2 && param[3] >= 0 && param[4] > 0
     end
