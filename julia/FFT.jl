@@ -27,31 +27,19 @@ dF = function(x::Real, p::Real, d::Int)
   x > 0 ? C*x^(d-3)*dstable(x^(-2), p, γ) : 0
 end
 
-pF = function (x::Real, p::Real, d::Int)
-  quadgk(x -> dF(x,p,d), 0, x; atol = (p > 0.9 ? 0 : 1e-3))[1]
+pF = function (x::Real, p::Real, d::Int; tol = 2e-3)
+  quadgk(x -> dF(x,p,d), 0, x; atol = tol)[1]
 end
 
-qF₁(x::Real, prob::Real, p::Real, d::Integer) = pF(x, p, d) - prob
+qF₁(x::Real, prob::Real, p::Real, d::Integer; tol = 2e-3) = pF(x, p, d; tol = tol) - prob
 
 qF = function(prob::Real, p::Real, d::Integer)
   prob > 0 && prob < 1 || throw(DomainError(prob, "must be on (0,1)"))
   try
     find_zero(x -> qF₁(x, prob, p, d), getInterval(prob, p, d), xatol=2e-3)
   catch e
-    #println("wtf: $prob, $p, $d")
-    if isa(e, DomainError) || isa(e, ArgumentError)
-      if p > 0.95
-        upper = 4
-      elseif p <= 0.3
-        upper = 10000
-      else
-        upper = 100
-      end
-      try
-        find_zero(x -> qF₁(x, prob, p, d), (1e-4, upper), xatol = 2e-3)
-      catch e
-        throw(DomainError((prob, p, d), " fails with $upper"))
-      end
+    if isa(e, DomainError) || isa(e, ArgumentError)   
+        find_zero(x -> qF₁(x, prob, p, d; tol = 0), getInterval(prob, p, d), xatol = 2e-3)
     end
   end
 end
