@@ -53,16 +53,15 @@ using Distributed
       )
     ])
   end
-  dims[i] |> x -> jldsave((@__DIR__) * "/d$x.jld2"; d)
+  dims[i] |> x -> jldsave(joinpath(@__DIR__, "d$x.jld2"); d)
 end
 
+d1 = load_object(joinpath(@__DIR__, "d1.jld2"));
+d2 = load_object(joinpath(@__DIR__, "d2.jld2"));
+d4 = load_object(joinpath(@__DIR__, "d4.jld2"));
+d6 = load_object(joinpath(@__DIR__, "d6.jld2"));
+d8 = load_object(joinpath(@__DIR__, "d8.jld2"));
+d10 = load_object(joinpath(@__DIR__, "d10.jld2"));
+d15 = load_object(joinpath(@__DIR__, "d15.jld2"));
 
-d1 = load_object((@__DIR__) * "d1.jld2");
-d2 = load_object((@__DIR__) * "d2.jld2");
-d4 = load_object((@__DIR__) * "d4.jld2");
-d6 = load_object((@__DIR__) * "d6.jld2");
-d8 = load_object((@__DIR__) * "d8.jld2");
-d10 = load_object((@__DIR__) * "d10.jld2");
-d15 = load_object((@__DIR__) * "d15.jld2");
-
-[d1, d2, d4, d6, d8, d10, d15] |> d -> jldsave((@__DIR__) * "/qFinterval.jld2"; d);
+[d1, d2, d4, d6, d8, d10, d15] |> d -> jldsave(joinpath(@__DIR__, "qFinterval.jld2"); d);
