@@ -42,7 +42,8 @@ qF = function(prob::Real, p::Real, d::Integer)
       try
         find_zero(x -> qF₁(x, prob, p, d; tol = 0), getInterval(prob, p, d), xatol = 2e-3)
       catch e
-        println("Domain with prob = $prob, p = $p, d=$d")
+        println("DomainError with prob = $prob, p = $p, d=$d")
+        find_zero(x -> qF₁(x, prob, p, d; tol = 0), (-100000, 100000), xatol = 2e-3)
       end
     end
   end
@@ -112,12 +113,13 @@ qG1const = function(prob::Matrix{Float64}, p::Real)
               elseif p >= 0.2
                 interval = (-800,800)
               else 
-                interval = (-1500, 1500)
+                interval = (-5000, 5000)
               end
               try
                 val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), interval)
               catch e
                 println("qG1 fails with prob = $prob_i, p = $p")
+                val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), (-100000, 100000))
               end
             end
           end
