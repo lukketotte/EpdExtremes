@@ -1,6 +1,6 @@
 module MepdCopula
 
-export rC, dC, pC, qF, pF, rF, dF, pG, dG, qG1, rG, dG1
+export rC, dC, pC, qF, pF, rF, dF, pG, dG, qG1, rG, dG1, pG1
 
 using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions, StatsFuns, MvNormalCDF, Random, InvertedIndices
 include("./Constants/qFinterval.jl")
@@ -17,21 +17,21 @@ function V(α::Real, θ::Real)
 end
 
 h(θ::Real, x::Real, α::Real) = (x-ζ(α))^(α/(α-1))*V(α,θ)*exp(-(x-ζ(α))^(α/(α-1))*V(α,θ))
-f(x::Real, α::Real) = α/(π*(x-ζ(α))*abs(α-1)) * quadgk(θ -> h(θ, x, α), -θ₀(α), α <= 0.95 ? π/2 : 1.565; atol = (α > 0.9 ? 0 : 1e-3))[1]
-dstable(x::Real, α::Real, γ::Real) = f((x-γ * tan(π*α/2))/γ, α)/γ
+f(x::Real, α::Real; tol::Real = 2e-3) = α/(π*(x-ζ(α))*abs(α-1)) * quadgk(θ -> h(θ, x, α), -θ₀(α), α <= 0.95 ? π/2 : 1.565; atol = tol)[1]
+dstable(x::Real, α::Real, γ::Real; tol::Real = 2e-3) = f((x-γ * tan(π*α/2))/γ, α; tol = tol)/γ
 
-dF = function(x::Real, p::Real, d::Int)
+dF = function(x::Real, p::Real, d::Int; tol::Real = 2e-3)
   p > 0 && p < 1 || throw(DomainError(p,"must be on (0,1)")) 
   γ = 2^(1-1/p) * cos(π*p/2)^(1/p)
   C = 2^(1+d/2*(1-1/p)) * gamma(1+d/2) / gamma(1+d/(2*p))
-  x > 0 ? C*x^(d-3)*dstable(x^(-2), p, γ) : 0
+  x > 0 ? C*x^(d-3)*dstable(x^(-2), p, γ; tol = tol) : 0
 end
 
-pF = function (x::Real, p::Real, d::Int; tol = 2e-3)
-  quadgk(x -> dF(x,p,d), 0, x; atol = tol)[1]
+pF = function (x::Real, p::Real, d::Int; tol::Real = 2e-3)
+  quadgk(x -> dF(x,p,d; tol), 0, x; atol = tol)[1]
 end
 
-qF₁(x::Real, prob::Real, p::Real, d::Integer; tol = 2e-3) = pF(x, p, d; tol = tol) - prob
+qF₁(x::Real, prob::Real, p::Real, d::Integer; tol::Real = 2e-3) = pF(x, p, d; tol = tol) - prob
 
 qF = function(prob::Real, p::Real, d::Integer)
   prob > 0 && prob < 1 || throw(DomainError(prob, "must be on (0,1)"))
@@ -39,10 +39,10 @@ qF = function(prob::Real, p::Real, d::Integer)
     find_zero(x -> qF₁(x, prob, p, d), getInterval(prob, p, d), xatol=2e-3)
   catch e
     if isa(e, DomainError) || isa(e, ArgumentError)
+      println("DomainError with prob = $prob, p = $p, d=$d")
       try
         find_zero(x -> qF₁(x, prob, p, d; tol = 0), getInterval(prob, p, d), xatol = 2e-3)
       catch e
-        println("DomainError with prob = $prob, p = $p, d=$d")
         find_zero(x -> qF₁(x, prob, p, d; tol = 0), (-100000, 100000), xatol = 2e-3)
       end
     end
@@ -70,7 +70,7 @@ pG1const = function (x::Matrix{Float64}, p::Real)
     for j in 1:D
       xi = x[i, j]
       if !ismissing(xi)
-        val[i, j] = quadgk(x -> pG1_fun(x, xi, p, 1), 0, 1; atol = 2e-3)[1]
+        val[i, j] = quadgk(x -> pG1_fun(x, xi, p, D), 0, 1; atol = 2e-3)[1] # changed to D inst of 1
       end
     end
   end
