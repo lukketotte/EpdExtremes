@@ -6,11 +6,11 @@ using Distributed, SharedArrays, JLD2
 @everywhere using .MepdCopula, .Utils
 
 dimension = 4
-nObs = 7*nprocs()
+nObs = 5*nprocs()
 
 
-Random.seed!(321)
-true_par = [log(1.0), 1.0, 0.7] # lambda, nu, p
+#Random.seed!(321)
+true_par = [log(1.0), 1.0, 0.5] # lambda, nu, p
 coord = rand(dimension, 2)
 dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
 cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
@@ -52,7 +52,7 @@ end
     return -sum(contrib)
 end
 
-x = optimize(x -> nllik(x, dat, coord, n, D, nprocs()), true_par, GradientDescent(), 
+x = optimize(x -> nllik(x, dat, coord, n, D, nprocs()), true_par, NelderMead(), 
                    Optim.Options(g_tol = 1e-4, # default 1e-8
                                  show_trace = true,
                                  show_every = 1,

@@ -7,8 +7,8 @@ using Distributed, SharedArrays
 dimension = 2
 nObs = 6*3
 
-Random.seed!(3221)
-true_par = [log(1.0), 1, 0.45] # lambda, nu, p
+Random.seed!(32)
+true_par = [log(1.0), 1., 0.5] # lambda, nu, p
 coord = rand(dimension, 2)
 dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
 cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
