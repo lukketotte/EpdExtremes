@@ -103,7 +103,22 @@ qG1const = function(prob::Matrix{Float64}, p::Real)
             try
               val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), (-15, 15))
             catch e
-              val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), (-100, 100))
+              if p >= 0.5
+                interval = (-120, 120)
+              elseif p >= 0.4
+                interval = (-300, 300)
+              elseif p >= 0.3
+                interval = (-500, 500)
+              elseif p >= 0.2
+                interval = (-800,800)
+              else 
+                interval = (-1500, 1500)
+              end
+              try
+                val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), interval)
+              catch e
+                println("qG1 fails with prob = $prob_i, p = $p")
+              end
             end
           end
         end

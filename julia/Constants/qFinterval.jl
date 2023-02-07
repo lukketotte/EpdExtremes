@@ -28,8 +28,12 @@ function getInterval(prob::Real, p::Real, d::Int;
     end
   elseif p >= 0.35
     return (0.01, 100.)
+  elseif p >= 0.3
+    return (0.01, 5000.)
+  elseif p >= 0.2
+    return (0.01, 20000.)
   else
-    return (0.01, 10000.)
+    return (0.01, 50000.)
   end
 end
 
