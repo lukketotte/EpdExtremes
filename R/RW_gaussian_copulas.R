@@ -74,8 +74,8 @@ rF = function(n, par, d = 1){
 #####################################
 ## Univariate mixture distriubtion ##
 #####################################
-pG1(1.1, 0.6)
-pnorm(sign(1.1) * exp(log(abs(1.1)) - log(qF(0.5, 0.6, 1, F))))
+#pG1(1.1, 0.6)
+#pnorm(sign(1.1) * exp(log(abs(1.1)) - log(qF(0.5, 0.6, 1, F))))
 #Marginal distribution function (CDF)
 pG1 <- function(x, par, log = FALSE){ ### if x is a vector, output is a vector; if x is a matrix, output is a matrix.
 	xmat <- x

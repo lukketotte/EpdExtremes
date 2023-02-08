@@ -39,10 +39,10 @@ qF = function(prob::Real, p::Real, d::Integer)
     find_zero(x -> qF₁(x, prob, p, d), getInterval(prob, p, d), xatol=2e-3)
   catch e
     if isa(e, DomainError) || isa(e, ArgumentError)
-      println("DomainError with prob = $prob, p = $p, d=$d")
       try
         find_zero(x -> qF₁(x, prob, p, d; tol = 0), getInterval(prob, p, d), xatol = 2e-3)
       catch e
+        println("DomainError with prob = $prob, p = $p, d=$d")
         find_zero(x -> qF₁(x, prob, p, d; tol = 0), (-100000, 100000), xatol = 2e-3)
       end
     end
