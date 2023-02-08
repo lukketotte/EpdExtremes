@@ -50,8 +50,9 @@ cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, 
 
 results = Array{Dict{String, Any}}([])
 p = range(0.2, 0.9, length = 8)
+println("starting...")
 
-for i ∈ 1:40
+for i in 1:40
   println("iter $i")
   dat = rC(nObs, dimension, cor_mat, true_par[3])
   (n, D) = size(dat)
