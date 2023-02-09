@@ -1,6 +1,6 @@
 module HuserCopula
 
-export rCH, dCH
+export rCH, dCH, rGH
 
 using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions, StatsFuns, MvNormalCDF, Random, InvertedIndices
 
