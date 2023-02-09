@@ -1,6 +1,6 @@
 module HuserCopula
 
-export rC, dC
+export rCH, dCH
 
 using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions, StatsFuns, MvNormalCDF, Random, InvertedIndices
 
@@ -254,10 +254,10 @@ dCconst = function(u::Matrix{Float64}, Sigma::Matrix{Float64}, par::AbstractVect
   return log.(dGH(qG1_val, Sigma, par)) .- sum(log.(dG1H(qG1_val, par)), dims = 2)
 end
 
-dC(u::Matrix{Float64}, Sigma::Matrix{Float64}, par::AbstractVector{<:Real}) = dCconst(u,Sigma,par)
-dC(u::Vector{Float64}, Sigma::Matrix{Float64}, par::AbstractVector{<:Real}) = dCconst(reshape(u, (1,size(Sigma,1))),Sigma,par)
+dCH(u::Matrix{Float64}, Sigma::Matrix{Float64}, par::AbstractVector{<:Real}) = dCconst(u,Sigma,par)
+dCH(u::Vector{Float64}, Sigma::Matrix{Float64}, par::AbstractVector{<:Real}) = dCconst(reshape(u, (1,size(Sigma,1))),Sigma,par)
 
-function rC(n::Integer, Sigma::Matrix{Float64},  par::AbstractVector{<:Real})
+function rCH(n::Integer, Sigma::Matrix{Float64},  par::AbstractVector{<:Real})
   return pG1H(rGH(n, Sigma, par), par)
 end
 
