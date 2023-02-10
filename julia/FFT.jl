@@ -1,6 +1,8 @@
 module MepdCopula
 
-export rC, dC, pC, qF, pF, rF, dF, pG, dG, qG1, rG, dG1, pG1
+export rC, dC, pC, qF, 
+  pF, rF, dF, pG, dG, 
+  qG1, rG, dG1, pG1, dGI, dCI
 
 using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions, StatsFuns, MvNormalCDF, Random, InvertedIndices
 include("./Constants/qFinterval.jl")
@@ -254,7 +256,7 @@ end
 ##
 
 # Partial derivatives of the distribution function
-dGI = function(x::Matrix{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float64}, p::Real) # x a matrix, I a vector of vectors of indices of threshold exceedances for eahc row of x
+dGI_const = function(x::Matrix{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float64}, p::Real) # x a matrix, I a vector of vectors of indices of threshold exceedances for eahc row of x
   (n, D) = size(x)
   res = Vector{Float64}(undef, n)
   for i in 1:n
@@ -262,6 +264,10 @@ dGI = function(x::Matrix{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float
   end
   return res
 end
+
+dGI(x::Matrix{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float64}, p::Real) = dGI_const(x, I, Sigma,p)
+dGI(x::Vector{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float64}, p::Real) = dGI_const(reshape(x, (1,size(Sigma,1))), I, Sigma,p)
+
 
 dGIi = function(xi::Vector{Float64}, I::Vector{Int64}, D::Integer, Sigma::Matrix{Float64}, p::Real)
   nI = length(I)
@@ -291,9 +297,9 @@ dGIi_fun = function(prob::Real, xi::Vector{Float64}, I::Vector{Int64}, p::Real, 
   log_qF = qF(prob, p, D)
   X = reshape(sign.(xi[I]) .* exp.(log.(abs.(xi[I])) .- log_qF), nI)
   if length(X) == 1
-    val = pdf(LogNormal(Sigma_II[1]), X[1]) .- nI .* log_qF
+    val = logpdf(Normal(Sigma_II[1]), X[1]) .- nI .* log_qF
   else
-    val = pdf(MvLogNormal(Sigma_II), X) .- nI .* log_qF
+    val = logpdf(MvNormal(Sigma_II), X) .- nI .* log_qF
   end
   if (nI < num_nna)
     X2 = reshape(sign.(XI_centerd) .* exp.(log.(abs.(XI_centerd)) .- log_qF), length(XI_centerd))
@@ -345,16 +351,19 @@ dC(u::Matrix{Float64}, Sigma::Matrix{Float64}, p::Real) = dCconst(u,Sigma,p)
 dC(u::Vector{Float64}, Sigma::Matrix{Float64}, p::Real) = dCconst(reshape(u, (1,size(Sigma,1))),Sigma,p)
 
 # Partial derivatives of the copula distribution C
-dCI = function(u::Matrix{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float64}, p::Real)
+dCI_const = function(u::Matrix{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float64}, p::Real)
   (n, D) = size(u)
   res_1 = Matrix{Float64}(undef, n, D)
-  res_2 = Vector{Float64}(undef, n)
+  res_2 = 0. #Vector{Float64}(undef, n)
   for i in 1:n
     res_1[i, :] = qG1(reshape(u[i, :], 1, D), p)
-    res_2[i] = dCI_fun(u[i, :], I[i], p)
+    res_2 += length(I[i]) > 0 ? dCI_fun(u[i, :], I[i], p) : 0 # -Inf if I[i] = []...
   end
-  return dGI(res_1, I, Sigma, p) .- res_2
+  return log.(dGI(res_1, I, Sigma, p)) .- (res_2 == 0 ? 0 : log.(res_2))
 end
+
+dCI(u::Matrix{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float64}, p::Real) = dCI_const(u,I,Sigma,p)
+dCI(u::Vector{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float64}, p::Real) = dCI_const(reshape(u, (1,size(Sigma,1))),I,Sigma,p)
 
 dCI_fun = function(u_i::Vector{Float64}, I_i::Vector{Int64}, p::Real)
   u_i_mat = reshape(u_i[I_i], 1, length(I_i))
