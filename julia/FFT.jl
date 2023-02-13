@@ -1,6 +1,8 @@
 module MepdCopula
 
-export rC, dC, pC, qF, pF, rF, dF, pG, dG, qG1, rG, dG1
+export rC, dC, pC, qF, 
+  pF, rF, dF, pG, dG, 
+  qG1, rG, dG1, pG1, dGI, dCI
 
 using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions, StatsFuns, MvNormalCDF, Random, InvertedIndices
 include("./Constants/qFinterval.jl")
@@ -17,40 +19,33 @@ function V(α::Real, θ::Real)
 end
 
 h(θ::Real, x::Real, α::Real) = (x-ζ(α))^(α/(α-1))*V(α,θ)*exp(-(x-ζ(α))^(α/(α-1))*V(α,θ))
-f(x::Real, α::Real) = α/(π*(x-ζ(α))*abs(α-1)) * quadgk(θ -> h(θ, x, α), -θ₀(α), α <= 0.95 ? π/2 : 1.570; atol = (α > 0.9 ? 0 : 1e-3))[1]
-dstable(x::Real, α::Real, γ::Real) = f((x-γ * tan(π*α/2))/γ, α)/γ
+f(x::Real, α::Real; tol::Real = 2e-3) = α/(π*(x-ζ(α))*abs(α-1)) * quadgk(θ -> h(θ, x, α), -θ₀(α), α <= 0.95 ? π/2 : 1.565; atol = tol)[1]
+dstable(x::Real, α::Real, γ::Real; tol::Real = 2e-3) = f((x-γ * tan(π*α/2))/γ, α; tol = tol)/γ
 
-dF = function(x::Real, p::Real, d::Int)
+dF = function(x::Real, p::Real, d::Int; tol::Real = 2e-3)
   p > 0 && p < 1 || throw(DomainError(p,"must be on (0,1)")) 
   γ = 2^(1-1/p) * cos(π*p/2)^(1/p)
   C = 2^(1+d/2*(1-1/p)) * gamma(1+d/2) / gamma(1+d/(2*p))
-  x > 0 ? C*x^(d-3)*dstable(x^(-2), p, γ) : 0
+  x > 0 ? C*x^(d-3)*dstable(x^(-2), p, γ; tol = tol) : 0
 end
 
-pF = function (x::Real, p::Real, d::Int)
-  quadgk(x -> dF(x,p,d), 0, x; atol = (p > 0.9 ? 0 : 1e-3))[1]
+pF = function (x::Real, p::Real, d::Int; tol::Real = 2e-3)
+  quadgk(x -> dF(x,p,d; tol), 0, x; atol = tol)[1]
 end
 
-qF₁(x::Real, prob::Real, p::Real, d::Integer) = pF(x, p, d) - prob
+qF₁(x::Real, prob::Real, p::Real, d::Integer; tol::Real = 2e-3) = pF(x, p, d; tol = tol) - prob
 
 qF = function(prob::Real, p::Real, d::Integer)
   prob > 0 && prob < 1 || throw(DomainError(prob, "must be on (0,1)"))
   try
-    find_zero(x -> qF₁(x, prob, p, d), getInterval(prob, p, d) .+ (0., 1.5), xatol=2e-3)
+    find_zero(x -> qF₁(x, prob, p, d), getInterval(prob, p, d), xatol=2e-3)
   catch e
-    #println("wtf: $prob, $p, $d")
     if isa(e, DomainError) || isa(e, ArgumentError)
-      if p > 0.95
-        upper = 4
-      elseif p <= 0.3
-        upper = 10000
-      else
-        upper = 100
-      end
       try
-        find_zero(x -> qF₁(x, prob, p, d), (1e-4, upper), xatol = 2e-3)
+        find_zero(x -> qF₁(x, prob, p, d; tol = 0), getInterval(prob, p, d), xatol = 2e-3)
       catch e
-        throw(DomainError((prob, p, d), " fails with $upper"))
+        println("DomainError with prob = $prob, p = $p, d=$d")
+        find_zero(x -> qF₁(x, prob, p, d; tol = 0), (-100000, 100000), xatol = 2e-3)
       end
     end
   end
@@ -77,7 +72,7 @@ pG1const = function (x::Matrix{Float64}, p::Real)
     for j in 1:D
       xi = x[i, j]
       if !ismissing(xi)
-        val[i, j] = quadgk(x -> pG1_fun(x, xi, p, 1), 0, 1; atol = 2e-3)[1]
+        val[i, j] = quadgk(x -> pG1_fun(x, xi, p, D), 0, 1; atol = 2e-3)[1] # changed to D inst of 1
       end
     end
   end
@@ -108,7 +103,27 @@ qG1const = function(prob::Matrix{Float64}, p::Real)
           if prob_i >= 1
             val[i, j] = Inf
           else
-            val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), (-10^2, 10^2))
+            try
+              val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), (-15, 15))
+            catch e
+              if p >= 0.5
+                interval = (-120, 120)
+              elseif p >= 0.4
+                interval = (-300, 300)
+              elseif p >= 0.3
+                interval = (-500, 500)
+              elseif p >= 0.2
+                interval = (-800,800)
+              else 
+                interval = (-5000, 5000)
+              end
+              try
+                val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), interval)
+              catch e
+                println("qG1 fails with prob = $prob_i, p = $p")
+                val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), (-100000, 100000))
+              end
+            end
           end
         end
       end
@@ -241,7 +256,7 @@ end
 ##
 
 # Partial derivatives of the distribution function
-dGI = function(x::Matrix{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float64}, p::Real) # x a matrix, I a vector of vectors of indices of threshold exceedances for eahc row of x
+dGI_const = function(x::Matrix{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float64}, p::Real) # x a matrix, I a vector of vectors of indices of threshold exceedances for eahc row of x
   (n, D) = size(x)
   res = Vector{Float64}(undef, n)
   for i in 1:n
@@ -249,6 +264,10 @@ dGI = function(x::Matrix{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float
   end
   return res
 end
+
+dGI(x::Matrix{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float64}, p::Real) = dGI_const(x, I, Sigma,p)
+dGI(x::Vector{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float64}, p::Real) = dGI_const(reshape(x, (1,size(Sigma,1))), I, Sigma,p)
+
 
 dGIi = function(xi::Vector{Float64}, I::Vector{Int64}, D::Integer, Sigma::Matrix{Float64}, p::Real)
   nI = length(I)
@@ -278,9 +297,9 @@ dGIi_fun = function(prob::Real, xi::Vector{Float64}, I::Vector{Int64}, p::Real, 
   log_qF = qF(prob, p, D)
   X = reshape(sign.(xi[I]) .* exp.(log.(abs.(xi[I])) .- log_qF), nI)
   if length(X) == 1
-    val = pdf(LogNormal(Sigma_II[1]), X[1]) .- nI .* log_qF
+    val = logpdf(Normal(Sigma_II[1]), X[1]) .- nI .* log_qF
   else
-    val = pdf(MvLogNormal(Sigma_II), X) .- nI .* log_qF
+    val = logpdf(MvNormal(Sigma_II), X) .- nI .* log_qF
   end
   if (nI < num_nna)
     X2 = reshape(sign.(XI_centerd) .* exp.(log.(abs.(XI_centerd)) .- log_qF), length(XI_centerd))
@@ -304,8 +323,8 @@ end
 ##
 
 # Random generator from the joint distribution G
-rG = function(n::Integer, d::Integer, Sigma::Matrix{Float64}, p::Real)
-  R = rF(n, p, d)
+function rG(n::Integer, Sigma::Matrix{Float64}, p::Real)
+  R = rF(n, p, size(Sigma,1))
   W = rand(MvNormal(Sigma), n)
   return R .* permutedims(W)
 end
@@ -332,16 +351,19 @@ dC(u::Matrix{Float64}, Sigma::Matrix{Float64}, p::Real) = dCconst(u,Sigma,p)
 dC(u::Vector{Float64}, Sigma::Matrix{Float64}, p::Real) = dCconst(reshape(u, (1,size(Sigma,1))),Sigma,p)
 
 # Partial derivatives of the copula distribution C
-dCI = function(u::Matrix{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float64}, p::Real)
+dCI_const = function(u::Matrix{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float64}, p::Real)
   (n, D) = size(u)
   res_1 = Matrix{Float64}(undef, n, D)
-  res_2 = Vector{Float64}(undef, n)
+  res_2 = 0. #Vector{Float64}(undef, n)
   for i in 1:n
     res_1[i, :] = qG1(reshape(u[i, :], 1, D), p)
-    res_2[i] = dCI_fun(u[i, :], I[i], p)
+    res_2 += length(I[i]) > 0 ? dCI_fun(u[i, :], I[i], p) : 0 # -Inf if I[i] = []...
   end
-  return dGI(res_1, I, Sigma, p) .- res_2
+  return log.(dGI(res_1, I, Sigma, p)) .- (res_2 == 0 ? 0 : log.(res_2))
 end
+
+dCI(u::Matrix{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float64}, p::Real) = dCI_const(u,I,Sigma,p)
+dCI(u::Vector{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float64}, p::Real) = dCI_const(reshape(u, (1,size(Sigma,1))),I,Sigma,p)
 
 dCI_fun = function(u_i::Vector{Float64}, I_i::Vector{Int64}, p::Real)
   u_i_mat = reshape(u_i[I_i], 1, length(I_i))
@@ -349,8 +371,8 @@ dCI_fun = function(u_i::Vector{Float64}, I_i::Vector{Int64}, p::Real)
 end
 
 # Random generator from the copula
-rC = function(n::Real, d::Real, Sigma::Matrix{Float64}, p::Real)
-  return pG1(rG(n, d, Sigma, p), p)
+function rC(n::Integer, Sigma::Matrix{Float64}, p::Real)
+  return pG1(rG(n, Sigma, p), p)
 end
 
 # OBS: ensures  precompilation!

@@ -62,7 +62,6 @@ qF = function(prob, par, d = 1, log = FALSE){
   }
 }
 
-
 # tar tid att simulera pga uniroot
 rF = function(n, par, d = 1){
   val = numeric(n)
@@ -75,7 +74,8 @@ rF = function(n, par, d = 1){
 #####################################
 ## Univariate mixture distriubtion ##
 #####################################
-
+#pG1(1.1, 0.6)
+#pnorm(sign(1.1) * exp(log(abs(1.1)) - log(qF(0.5, 0.6, 1, F))))
 #Marginal distribution function (CDF)
 pG1 <- function(x, par, log = FALSE){ ### if x is a vector, output is a vector; if x is a matrix, output is a matrix.
 	xmat <- x
@@ -85,7 +85,7 @@ pG1 <- function(x, par, log = FALSE){ ### if x is a vector, output is a vector; 
 	n <- nrow(xmat)
 	D <- ncol(xmat)
 	fun <- function(p, x, par){
-		return( pnorm(sign(x) * exp(log(abs(x)) - log(qF(p, par, 2, F)))) )
+		return( pnorm(sign(x) * exp(log(abs(x)) - log(qF(p, par, D, F)))) )
 	}
 	val <- matrix(nrow = n, ncol = D)
 	for (i in 1:n){
@@ -151,7 +151,7 @@ dG1 <- function(x, par, log = FALSE){ ### if x is a vector, output is a vector; 
 	n <- nrow(xmat)
 	D <- ncol(xmat)
 	fun <- function(p, x, par){
-		log.qF <- qF(p, par, 2, TRUE)
+		log.qF <- qF(p, par, D, TRUE)
 		return( exp(dnorm(sign(x) * exp(log(abs(x)) - log.qF), log = TRUE) - log.qF) )
 	}
 	val <- matrix(nrow = n, ncol = D)

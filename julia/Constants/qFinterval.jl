@@ -9,23 +9,31 @@ intervals = load_object(joinpath(@__DIR__,"qFinterval.jld2"))
 function getInterval(prob::Real, p::Real, d::Int; 
   intervals::Vector{Vector{Dict{String, Any}}} = intervals)::Tuple{Float64, Float64}
   if p >= 0.4
-    if d <= 2
+    if d == 1
       return intervals[1][sortByShape(p)]["interval"][sortByProb(prob)]
-    elseif d <= 4
+    elseif d == 2
       return intervals[2][sortByShape(p)]["interval"][sortByProb(prob)]
-    elseif d <= 6
+    elseif d <= 4
       return intervals[3][sortByShape(p)]["interval"][sortByProb(prob)]
-    elseif d <= 8
+    elseif d <= 6
       return intervals[4][sortByShape(p)]["interval"][sortByProb(prob)]
+    elseif d <= 8
+      return intervals[5][sortByShape(p)]["interval"][sortByProb(prob)]
     elseif d <= 10
-      return intervals[5][sortByShape(p)]["interval"][sortByProb(prob)]
+      return intervals[6][sortByShape(p)]["interval"][sortByProb(prob)]
     elseif d <= 15
-      return intervals[5][sortByShape(p)]["interval"][sortByProb(prob)]
+      return intervals[7][sortByShape(p)]["interval"][sortByProb(prob)]
     else
       return (0.01, 100.)
     end
-  else
+  elseif p >= 0.35
     return (0.01, 100.)
+  elseif p >= 0.3
+    return (0.01, 5000.)
+  elseif p >= 0.2
+    return (0.01, 20000.)
+  else
+    return (0.01, 50000.)
   end
 end
 

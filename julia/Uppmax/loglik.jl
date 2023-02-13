@@ -1,21 +1,10 @@
 using Distributed, SharedArrays, JLD2
 
 @everywhere using Optim, Compat, LinearAlgebra, Statistics, Random, Dates
+
 @everywhere include("../utils.jl")
 @everywhere include("../FFT.jl")
 @everywhere using .MepdCopula, .Utils
-
-dimension = 4
-nObs = 5*nprocs()
-
-
-#Random.seed!(321)
-true_par = [log(1.0), 1.0, 0.5] # lambda, nu, p
-coord = rand(dimension, 2)
-dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
-cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
-dat = rC(nObs, dimension, cor_mat, true_par[3])
-(n, D) = size(dat)
 
 nllik = function (param::Vector{Float64}, dat::Matrix{Float64}, coord::Matrix{Float64}, n::Integer, D::Integer, ncores::Integer)
     if !cond_cor(param) # check conditions on parameters
@@ -48,16 +37,35 @@ end
     elseif ncores == 1
         ind_block = 1:n
     end
-    contrib = dC(reshape(dat[ind_block, :], length(ind_block), D), Sigmab, param[3])
+    contrib = dC(reshape(dat[ind_block, :], length(ind_block), size(Sigmab, 1)), Sigmab, param[3])
     return -sum(contrib)
 end
 
-x = optimize(x -> nllik(x, dat, coord, n, D, nprocs()), true_par, NelderMead(), 
-                   Optim.Options(g_tol = 1e-4, # default 1e-8
-                                 show_trace = true,
-                                 show_every = 1,
-                                 extended_trace = true)
-                    )
+dimension = 4
+nObs = 10*nprocs()
+true_par = [log(1.0), 1.0, 0.5] # lambda, nu, p
+coord = rand(dimension, 2)
+dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
+cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
 
+results = Array{Dict{String, Any}}([])
+p = range(0.2, 0.9, length = 8)
+println("starting...")
 
-jldsave("test.jld2"; x)
+for i in 1:40
+  println("iter $i")
+  dat = rC(nObs, dimension, cor_mat, true_par[3])
+  (n, D) = size(dat)
+  res = zeros(Float64, length(p))
+  for i in eachindex(p)
+    res[i] = nllik([true_par[1], true_par[2], p[i]], dat, coord, n, D, nprocs())
+  end
+
+  append!(results, [
+  Dict(
+    "p" => p,
+    "res" => res
+  )]) 
+end
+
+jldsave(joinpath(@__DIR__, "sims.jld2"); results)
