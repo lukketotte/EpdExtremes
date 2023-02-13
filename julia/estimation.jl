@@ -12,7 +12,7 @@ true_par = [log(1.0), 1., 0.8] # lambda, nu, p
 coord = rand(dimension, 2)
 dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
 cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
-dat = rC(nObs, dimension, cor_mat, true_par[3])
+dat = rC(nObs, cor_mat, true_par[3])
 (n, D) = size(dat)
 
 
