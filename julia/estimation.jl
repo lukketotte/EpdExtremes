@@ -5,7 +5,7 @@ using Distributed, SharedArrays
 @everywhere include("./FFT.jl")
 @everywhere using .MepdCopula, .Utils
 dimension = 2
-nObs = 6*10
+nObs = nprocs() * 12
 
 #Random.seed!(32)
 true_par = [log(1.0), 1., 0.6] # lambda, nu, p
@@ -14,14 +14,6 @@ dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
 cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
 dat = rC(nObs, cor_mat, true_par[3])
 (n, D) = size(dat)
-
-
-@time x = optimize(x -> nllik(x, dat, coord, n, D, 6), true_par, NelderMead(), 
-                   Optim.Options(g_tol = 2e-3, # default 1e-8
-                                 show_trace = true,
-                                 show_every = 1,
-                                 extended_trace = true)
-                    )
 
 #############################################
 # uncensored powered exponential
@@ -69,6 +61,14 @@ end
     contrib = dC(reshape(dat[ind_block, :], length(ind_block), size(Sigmab, 1)), Sigmab, param[3])
     return -sum(contrib)
 end
+
+@time x = optimize(x -> nllik(x, dat, coord, n, D, nprocs()), true_par, NelderMead(), 
+                   Optim.Options(g_tol = 2e-3, # default 1e-8
+                                 show_trace = true,
+                                 show_every = 1,
+                                 extended_trace = true)
+                    )
+
 
 
 
