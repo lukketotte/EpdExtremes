@@ -205,7 +205,7 @@ end
 pGi_fun = function(prob::Real, xi::Vector{Float64}, Sigma::Matrix{Float64}, p::Real, D::Integer, ind_nna::Vector{Int64})
   X = sign.(xi[ind_nna]) .* exp.(log.(abs.(xi[ind_nna])) .- log(qF(prob, p, D)))
   if length(X) == 1
-    val = StatsFuns.normcdf(0.0, Sigma[1], X[1])
+    val = StatsFuns.normcdf(0.0, √Sigma[1], X[1])
   else
     val = mvnormcdf(MvNormal(Sigma[ind_nna, ind_nna]), repeat([-Inf], length(X)), X)[1]
   end
@@ -247,7 +247,7 @@ dGi_fun = function(prob::Real, xi::Vector{Float64}, p::Real, Sigma::Matrix{Float
   log_qF = log(qF(prob, p, D))
   X = sign.(xi[ind_nna]) .* exp.(log.(abs.(xi[ind_nna])) .- log_qF)
   if length(X) == 1
-    val = exp(logpdf(Normal(Sigma[1]), X[1]) .- num_nna * log_qF)
+    val = exp(logpdf(Normal(√Sigma[1]), X[1]) .- num_nna * log_qF)
   else
     val = exp(logpdf(MvNormal(Sigma[ind_nna, ind_nna]), X) .- num_nna * log_qF)
   end

@@ -5,16 +5,16 @@ using Distributed, SharedArrays, JLD2
 @everywhere include("../FFT.jl")
 @everywhere using .MepdCopula, .Utils
 
-dimension = 4
+dimension = 2
 nObs = 5*nprocs()
 
 
 #Random.seed!(321)
-true_par = [log(1.0), 1.0, 0.5] # lambda, nu, p
+true_par = [log(1.0), 1.0, 0.6] # lambda, nu, p
 coord = rand(dimension, 2)
 dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
 cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
-dat = rC(nObs, dimension, cor_mat, true_par[3])
+dat = rC(nObs, cor_mat, true_par[3])
 (n, D) = size(dat)
 
 nllik = function (param::Vector{Float64}, dat::Matrix{Float64}, coord::Matrix{Float64}, n::Integer, D::Integer, ncores::Integer)
