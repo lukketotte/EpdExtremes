@@ -63,6 +63,7 @@ end
 #####################################
 ## Univariate mixture distriubtion ##
 #####################################
+const mixTol = 1e-8
 
 # Marginal distribution function (CDF)
 pG1const = function (x::Matrix{Float64}, p::Real)
@@ -72,7 +73,7 @@ pG1const = function (x::Matrix{Float64}, p::Real)
     for j in 1:D
       xi = x[i, j]
       if !ismissing(xi)
-        val[i, j] = quadgk(x -> pG1_fun(x, xi, p, D), 0, 1; atol = 2e-3)[1] # changed to D inst of 1
+        val[i, j] = quadgk(x -> pG1_fun(x, xi, p, D), 0, 1; atol = mixTol)[1] # changed to D inst of 1
       end
     end
   end
@@ -149,7 +150,7 @@ dG1 = function(x::Matrix{Float64}, p::Real)
     for j in 1:D
       xi = x[i, j]
       if !ismissing(xi)
-        val[i, j] = quadgk(x -> dG1_fun(x, xi, p, D), 1e-6, 1; atol = 1e-4)[1]
+        val[i, j] = quadgk(x -> dG1_fun(x, xi, p, D), 1e-8, 1; atol = mixTol)[1]
       end
     end
   end
@@ -199,7 +200,7 @@ pGi = function(xi::Vector{Float64}, Sigma::Matrix{Float64}, p::Real, D::Integer)
       ind_nna[i] = missing # check how missing values will be recorded in the data of interest
     end
   end
-  return quadgk(x -> pGi_fun(x, xi, Sigma, p, D, ind_nna), 0, 1; atol = 2e-3)[1]
+  return quadgk(x -> pGi_fun(x, xi, Sigma, p, D, ind_nna), 0, 1; atol = mixTol)[1]
 end
 
 pGi_fun = function(prob::Real, xi::Vector{Float64}, Sigma::Matrix{Float64}, p::Real, D::Integer, ind_nna::Vector{Int64})
@@ -240,7 +241,7 @@ dGi = function(xi::Vector{Float64}, Sigma::Matrix{Float64}, p::Real, D::Integer)
       ind_nna[i] = missing # check how missing values will be recorded in the data of interest
     end
   end
-  return quadgk(x -> dGi_fun(x, xi, p, Sigma, D, ind_nna, num_nna), 1e-8, 1; atol = 2e-3)[1]
+  return quadgk(x -> dGi_fun(x, xi, p, Sigma, D, ind_nna, num_nna), 1e-8, 1; atol = mixTol)[1]
 end
 
 dGi_fun = function(prob::Real, xi::Vector{Float64}, p::Real, Sigma::Matrix{Float64}, D::Integer, ind_nna::Vector{Int64}, num_nna::Integer)

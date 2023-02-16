@@ -5,7 +5,7 @@ using Distributed, SharedArrays
 @everywhere include("./FFT.jl")
 @everywhere using .MepdCopula, .Utils
 dimension = 2
-nObs = nprocs() * 12
+nObs = nprocs() * 40
 
 #Random.seed!(32)
 true_par = [log(1.0), 1., 0.6] # lambda, nu, p
