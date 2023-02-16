@@ -71,7 +71,7 @@ pG1const = function (x::Matrix{Float64}, p::Real)
     for j in 1:D
       xi = x[i, j]
       if !ismissing(xi)
-        val[i, j] = quadgk(x -> pG1_fun(x, xi, p, D), 0, 1; atol = 2e-3)[1] # changed to D inst of 1
+        val[i, j] = quadgk(x -> pG1_fun(x, xi, p, D), 0, 1; atol = 1e-4)[1] # changed to D inst of 1
       end
     end
   end
@@ -148,7 +148,7 @@ dG1 = function(x::Matrix{Float64}, p::Real)
     for j in 1:D
       xi = x[i, j]
       if !ismissing(xi)
-        val[i, j] = quadgk(x -> dG1_fun(x, xi, p, D), 1e-8, 1; atol = 2e-3)[1]
+        val[i, j] = quadgk(x -> dG1_fun(x, xi, p, D), 1e-8, 1; atol = 1e-4)[1]
       end
     end
   end
