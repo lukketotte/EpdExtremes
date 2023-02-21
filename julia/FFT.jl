@@ -6,7 +6,8 @@ export rC, dC, pC, qF,
 
 using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions, StatsFuns, MvNormalCDF, Random, InvertedIndices
 include("./Constants/qFinterval.jl")
-using .QFinterval
+include("./Distributions/mepd.jl")
+using .QFinterval, .MultivariateEpd
 
 ζ(α::Real) = -tan(π*α/2)
 θ₀(α::Real) = 1/α * atan(tan(π*α/2))
@@ -343,7 +344,7 @@ pC(u::Vector{Float64}, Sigma::Matrix{Float64}, p::Real) = pCconst(reshape(u, (1,
 # Copula density (PDF)
 dCconst = function(u::Matrix{Float64}, Sigma::Matrix{Float64}, p::Real)
   qG1_val = qG1(u, p)
-  return log.(dG(qG1_val, Sigma, p)) .- sum(log.(dG1(qG1_val, p)), dims = 2)
+  return logpdf(MvEpd(p, Sigma), permutedims(qG1_val)) .- sum(log.(dG1(qG1_val, p)), dims = 2)
 end
 
 dC(u::Matrix{Float64}, Sigma::Matrix{Float64}, p::Real) = dCconst(u,Sigma,p)

@@ -6,7 +6,7 @@ using Distributed, SharedArrays, JLD2
 @everywhere using .MepdCopula, .Utils
 
 dimension = 2
-nObs = 10*nprocs()
+nObs = 5*nprocs()
 
 
 #Random.seed!(321)
@@ -52,7 +52,7 @@ end
     return -sum(contrib)
 end
 
-x = optimize(x -> nllik(x, dat, coord, n, D, nprocs()), [true_par[1:2]..., 0.6], NelderMead(), 
+x = optimize(x -> nllik(x, dat, coord, n, D, nprocs()), [true_par[1:2]..., 0.6], LBFGS(), 
                    Optim.Options(g_tol = 1e-4, # default 1e-8
                                  show_trace = true,
                                  show_every = 1,
