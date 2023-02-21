@@ -374,8 +374,14 @@ function rC(n::Integer, Sigma::Matrix{Float64}, p::Real)
   return pG1(rG(n, Sigma, p), p)
 end
 
+### Independence measures ###
+χ(u::Real, ρ::Real, p::Real) = 2 - log(pC([u u], [1 ρ ; ρ 1], p)[1])/log(u)
+χ(u::AbstractVector{<:Real}, ρ::Real, p::Real) = [χ(u[i], ρ, p) for i in eachindex(u)]
+
+
 # OBS: ensures  precompilation!
 dG([.23, .8], [1 0.2; 0.2 1], 0.7);
 pG([.23, .8], [1 0.2; 0.2 1], 0.7);
+
 
 end
