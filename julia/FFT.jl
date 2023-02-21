@@ -119,8 +119,8 @@ qG1const = function(prob::Matrix{Float64}, p::Real)
               try
                 val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), interval)
               catch e
-                println("qG1 fails with prob = $prob_i, p = $p")
-                val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), (-100000, 100000))
+                #println("qG1 fails with prob = $prob_i, p = $p")
+                val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), (-10^4, 10^4))
               end
             end
           end
@@ -148,7 +148,7 @@ dG1 = function(x::Matrix{Float64}, p::Real)
     for j in 1:D
       xi = x[i, j]
       if !ismissing(xi)
-        val[i, j] = quadgk(x -> dG1_fun(x, xi, p, D), 1e-8, 1; atol = 2e-3)[1]
+        val[i, j] = quadgk(x -> dG1_fun(x, xi, p, D), 0, 1; atol = 2e-3)[1]
       end
     end
   end
@@ -239,7 +239,7 @@ dGi = function(xi::Vector{Float64}, Sigma::Matrix{Float64}, p::Real, D::Integer)
       ind_nna[i] = missing # check how missing values will be recorded in the data of interest
     end
   end
-  return quadgk(x -> dGi_fun(x, xi, p, Sigma, D, ind_nna, num_nna), 1e-8, 1; atol = 2e-3)[1]
+  return quadgk(x -> dGi_fun(x, xi, p, Sigma, D, ind_nna, num_nna), 0, 1; atol = 2e-3)[1]
 end
 
 dGi_fun = function(prob::Real, xi::Vector{Float64}, p::Real, Sigma::Matrix{Float64}, D::Integer, ind_nna::Vector{Int64}, num_nna::Integer)
