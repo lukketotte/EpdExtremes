@@ -131,8 +131,9 @@ nllik_block_cens = function (block::Integer, dat::Matrix{Float64}, I_exc::Vector
     return -(contrib1 + contrib2)
 end
 
-dat = rC(nprocs() * 8, cor_mat, 0.5)
+dat = rC(nprocs() * 20, cor_mat, 0.2)
 nllik([log(1.), 1., 0.2], dat, coord, 0.9, nprocs())
 nllik([log(1.), 1., 0.5], dat, coord, 0.9, nprocs())
-nllik([log(1.), 1., 0.85], dat, coord, 0.9, nprocs())
+nllik([log(1.), 1., 0.7], dat, coord, 0.9, nprocs())
+nllik([log(1.), 1., 0.8], dat, coord, 0.9, nprocs())
 nllik([log(1.), 1., 0.9], dat, coord, 0.9, nprocs())
