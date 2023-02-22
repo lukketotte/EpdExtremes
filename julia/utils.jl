@@ -82,7 +82,7 @@ function censoring(data::AbstractMatrix{<:Real}, thresh::Real)
         end
     end
     inds = I1 .|| I2
-    return inds, I_exc, I_nexc_nb, I_nexc_len
+    return inds, I_exc, I_nexc, I_nexc_nb, I_nexc_len, I1, I2
   end
   
   censoring(data::AbstractVector{<:Real}, thresh::Real) = censoring(reshape(data, (1,length(data))), thresh)

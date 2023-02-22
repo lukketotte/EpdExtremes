@@ -4,16 +4,15 @@ using Distributed, SharedArrays
 @everywhere include("./utils.jl")
 @everywhere include("./FFT.jl")
 @everywhere using .MepdCopula, .Utils
-dimension = 2
-nObs = nprocs() * 40
 
+dimension = 2
+nObs = nprocs() * 4
 #Random.seed!(32)
 true_par = [log(1.0), 1., 0.6] # lambda, nu, p
 coord = rand(dimension, 2)
 dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
 cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
 dat = rC(nObs, cor_mat, true_par[3])
-(n, D) = size(dat)
 
 #############################################
 # uncensored powered exponential
@@ -69,25 +68,9 @@ end
                                  extended_trace = true)
                     )
 
-
-
-
 #############################################
 # censored powered exponential
 #############################################
-dimension = 4
-nObs = 4 * 2
-Random.seed!(3454)
-true_par = [1.0, 1.0, 0.5] # lambda, nu, p
-coord = rand(dimension, 2)
-dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
-cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
-dat = rC(nObs, dimension, cor_mat, true_par[3])
-(n, D) = size(dat)
-
-round(quantile(vec(dat), 0.5), digits=2)
-thres = 0.7
-
 copula_cens = function (dat::Matrix{Float64}, coord::Matrix{Float64}, thres::Real, init_val::Vector{Float64}, ncores::Integer)
     inds, I_exc, I_nexc_nb, I_nexc_len = censoring(dat, thres)
     opt_res = optimize(x -> nllik_cens(x, dat_cens, coord, thres, inds, I_exc, I_nexc_nb, I_nexc_len, n, D, ncores), init_val, NelderMead())
@@ -95,26 +78,13 @@ copula_cens = function (dat::Matrix{Float64}, coord::Matrix{Float64}, thres::Rea
     return [opt_res.Minimizer, opt_res.Minimum, opt_res.Iterations]
 end
 
-Dates.format(now(), "HH:MM")
-@time x = optimize(x -> nllik_cens(x, dat_cens, coord, thres, inds, I_exc, I_nexc_nb, I_nexc_len, n, D, 4), [0.1,0.1,0.75], NelderMead(),
-    Optim.Options(g_tol = 2e-3, # default 1e-8
-        show_trace = true,
-        show_every = 1,
-        extended_trace = true)
-)
-Dates.format(now(), "HH:MM")
-
-Optim.minimizer(x)
-
-# Dates.format(now(), "HH:MM")
-# @time test = nllik_cens([1.0, 1.0, 0.9], dat_cens, coord, thres, inds, I_exc, I_nexc_nb, I_nexc_len, n, D, 1)
-
-function nllik(param::Vector{Float64}, dat::Matrix{Float64}, coord::Matrix{Float64}, thres::Real, inds::BitVector, I_exc::Vector{Vector{Int64}}, I_nexc_nb::Vector{Int64}, I_nexc_len::Vector{Int64}, n::Integer, D::Integer, ncores::Integer)
+function nllik(param::Vector{Float64}, dat::Matrix{Float64}, coord::Matrix{Float64}, thres::Real, ncores::Integer)
     # check conditions on parameters
     if !cond_cor(param)
         return 1e+10
     end
-
+    (n,D) = size(dat)
+    inds, I_exc, I_nexc, I_nexc_nb, I_nexc_len, I1, I2 = censoring(dat, thres) # I have no idea what all these are
     # matrix of correlations in W
     dists = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
     Sigmab = cor_fun(reshape(sqrt.(dists[1, :] .^ 2 .+ dists[2, :] .^ 2), D, D), param)
@@ -125,7 +95,7 @@ function nllik(param::Vector{Float64}, dat::Matrix{Float64}, coord::Matrix{Float
     # compute likelihood for partial or full exceedances
     nllik_res = SharedArray{Float64}(ncores)
     @sync @distributed for i in 1:ncores # ncores can be no larger than the number of observations
-        nllik_res[i] = nllik_block_cens(i, dat, I_exc, param, Sigmab, inds, n, ncores)
+        nllik_res[i] = nllik_block_cens(i, dat, I_exc, param, Sigmab, inds, n, ncores, I1, I2)
     end
     if any(isnan.(nllik_res))
         return 1e+10
@@ -140,8 +110,9 @@ function nllik(param::Vector{Float64}, dat::Matrix{Float64}, coord::Matrix{Float
     return sum(nllik_res) - sum(contrib3)
 end
 
-
-nllik_block_cens = function (block::Integer, dat::Matrix{Float64}, I_exc::Vector{Vector{Int64}}, param::Vector{Float64}, Sigmab::Matrix{Float64}, inds::BitVector, n::Integer, ncores::Integer)
+nllik_block_cens = function (block::Integer, dat::Matrix{Float64}, I_exc::Vector{Vector{Int64}}, 
+    param::Vector{Float64}, Sigmab::Matrix{Float64}, inds::BitVector, n::Integer, ncores::Integer,
+    I1::Vector{Bool}, I2::Vector{Bool})
     if ncores > 1
         indmin = vcat(0.5, quantile(1:sum(inds), LinRange(1 / ncores, (ncores - 1) / ncores, ncores - 1)))[block]
         indmax = vcat(quantile(1:sum(inds), LinRange(1 / ncores, (ncores - 1) / ncores, ncores - 1)), n + 0.5)[block]
@@ -152,11 +123,16 @@ nllik_block_cens = function (block::Integer, dat::Matrix{Float64}, I_exc::Vector
     contrib1 = 0
     contrib2 = 0
     if sum(I1[inds][ind_block]) > 0 # no censoring
-        contrib1 = sum(dC(reshape(dat[inds, :][ind_block, :][I1[inds][ind_block], :], sum(I1[inds][ind_block]), D), Sigmab, param[3]))
+        contrib1 = sum(dC(reshape(dat[inds, :][ind_block, :][I1[inds][ind_block], :], sum(I1[inds][ind_block]), size(Sigmab, 1)), Sigmab, param[3]))
     end
     if sum(I2[inds][ind_block]) > 0 # partial censoring
-        contrib2 = sum(dCI(reshape(dat[inds, :][ind_block, :][I2[inds][ind_block], :], sum(I2[inds][ind_block]), D), I_exc[inds][ind_block][I2[inds][ind_block]], Sigmab, param[3]))
+        contrib2 = sum(dCI(reshape(dat[inds, :][ind_block, :][I2[inds][ind_block], :], sum(I2[inds][ind_block]), size(Sigmab, 1)), I_exc[inds][ind_block][I2[inds][ind_block]], Sigmab, param[3]))
     end
     return -(contrib1 + contrib2)
 end
 
+dat = rC(nprocs() * 8, cor_mat, 0.5)
+nllik([log(1.), 1., 0.2], dat, coord, 0.9, nprocs())
+nllik([log(1.), 1., 0.5], dat, coord, 0.9, nprocs())
+nllik([log(1.), 1., 0.85], dat, coord, 0.9, nprocs())
+nllik([log(1.), 1., 0.9], dat, coord, 0.9, nprocs())
