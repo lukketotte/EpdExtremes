@@ -52,36 +52,38 @@ function censoring(data::AbstractMatrix{<:Real}, thresh::Real)
     for i in 1:n
       I_exc[i] = findall(dat_cens[i, :] .> thresh) # indices of exceedances
       I_nexc[i] = findall(dat_cens[i, :] .≤ thresh) # indices of non-exceedances
-      n_exc = length(I_exc[i])
+      n_exc = length(I_exc[i]) # number of exceedances in observation i
       if n_exc == D # no censoring
           I1[i] = 1
       end
       if n_exc > 0 && n_exc < D # partial censoring
           I2[i] = 1
       end
-      if n_exc == 0 # fully censored
+      if n_exc == 0 # full censoring
           I3[i] = 1
       end
     end
     
     # if there are any fully censored observations
     if any(I3 .== 1)
-        I_nexc = unique(I_nexc[I3]) # unique compositions of fully censored obs
-        I_nexc_len = Vector{Int64}(undef, length(I_nexc))
+        # the following only really matters of there are missing values in data
+        I_nexc = unique(I_nexc[I3]) # unique compositions of fully censored obs. will be a single element for a complete data set
+        I_nexc_len = Vector{Int64}(undef, length(I_nexc)) # length of each unique composition of fully censored obs.
         for i in eachindex(I_nexc)
             I_nexc_len[i] = length(I_nexc[i])
         end
         I_nexc_nb = Vector{Int64}(undef, length(I_nexc_len))
-        for i in eachindex(I_nexc)
+        for i in eachindex(I_nexc) # check if any vectors in I_nexc are duplicates
             I_nexc_nb[i] = compute_I_nexc_nb_i(i, I_nexc)
         end
-        dims_c = sort(unique(n_sites[I3])) # dimensions of fully censored obs. only one number for a complete data set
-        nb_dims_c = Vector{Int64}(undef, length(dims_c))
-        for i in eachindex(dims_c)
-            nb_dims_c[i] = sum(n_sites[I3][1] == dims_c[i])
-        end
+        # dims_c = sort(unique(n_sites[I3])) # dimensions of fully censored obs. only one number for a complete data set
+        # nb_dims_c = Vector{Int64}(undef, length(dims_c))
+        # for i in eachindex(dims_c)
+        #     nb_dims_c[i] = sum(n_sites[I3][1] == dims_c[i]) # count number of occurrances of each dimension of fully censored obs.
+        # end
     end
-    inds = I1 .|| I2
+    # nfc <- sum(I3) # number of fully censored obs
+    inds = I1 .|| I2 # indices of obs with no or partial censoring
     return inds, I_exc, I_nexc, I_nexc_nb, I_nexc_len, I1, I2
   end
   

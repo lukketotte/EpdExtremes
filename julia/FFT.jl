@@ -4,7 +4,7 @@ export rC, dC, pC, qF,
   pF, rF, dF, pG, dG, 
   qG1, rG, dG1, pG1, dGI, dCI
 
-using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions, StatsFuns, MvNormalCDF, Random, InvertedIndices
+using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions, StatsFuns, MvNormalCDF, Random, InvertedIndices, PositiveFactorizations, PDMats
 include("./Constants/qFinterval.jl")
 include("./Distributions/mepd.jl")
 using .QFinterval, .MultivariateEpd
@@ -72,7 +72,7 @@ pG1const = function (x::Matrix{Float64}, p::Real)
     for j in 1:D
       xi = x[i, j]
       if !ismissing(xi)
-        val[i, j] = quadgk(x -> pG1_fun(x, xi, p, D), 0, 1; atol = 2e-3)[1] # changed to D inst of 1
+        val[i, j] = quadgk(x -> pG1_fun(x, xi, p, D), 0, 1; rtol = 1e-3)[1] # changed to D inst of 1
       end
     end
   end
@@ -83,10 +83,8 @@ pG1_fun = function(prob::Real, x::Real, p::Real, d::Int)
   return StatsFuns.normcdf(0.0, 1.0, sign(x) * exp( log(abs(x)) - log(qF(prob, p, d))))
 end
 
-pG1(x::Matrix{Float64}, p::Real) = pG1const(x,p)
-pG1(x::Vector{Float64}, p::Real) = pG1const(reshape(x, (1,length(x))),p)
-
-
+pG1(x::Matrix{Float64}, p::Real) = pG1const(x, p)
+pG1(x::Vector{Float64}, p::Real) = pG1const(reshape(x, (1, length(x))), p)
 ##
 
 # Marginal quantile function
@@ -104,7 +102,7 @@ qG1const = function(prob::Matrix{Float64}, p::Real)
             val[i, j] = Inf
           else
             try
-              val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), (-15, 15))
+              val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), (-5, 5), xrtol = 1e-10)
             catch e
               if p >= 0.5
                 interval = (-120, 120)
@@ -118,10 +116,10 @@ qG1const = function(prob::Matrix{Float64}, p::Real)
                 interval = (-5000, 5000)
               end
               try
-                val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), interval)
+                val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), interval, xrtol = 1e-10)
               catch e
                 #println("qG1 fails with prob = $prob_i, p = $p")
-                val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), (-10^4, 10^4))
+                val[i, j] = find_zero(x -> qG1_fun(x, prob_i, p), (-10^4, 10^4), xrtol = 1e-10)
               end
             end
           end
@@ -149,7 +147,7 @@ dG1 = function(x::Matrix{Float64}, p::Real)
     for j in 1:D
       xi = x[i, j]
       if !ismissing(xi)
-        val[i, j] = quadgk(x -> dG1_fun(x, xi, p, D), 0, 1; atol = 2e-3)[1]
+        val[i, j] = quadgk(x -> dG1_fun(x, xi, p, D), 0, 1; rtol = 1e-3)[1]
       end
     end
   end
@@ -199,13 +197,13 @@ pGi = function(xi::Vector{Float64}, Sigma::Matrix{Float64}, p::Real, D::Integer)
       ind_nna[i] = missing # check how missing values will be recorded in the data of interest
     end
   end
-  return quadgk(x -> pGi_fun(x, xi, Sigma, p, D, ind_nna), 0, 1; atol = 2e-3)[1]
+  return quadgk(x -> pGi_fun(x, xi, Sigma, p, D, ind_nna), 0, 1; rtol = 1e-3)[1]
 end
 
 pGi_fun = function(prob::Real, xi::Vector{Float64}, Sigma::Matrix{Float64}, p::Real, D::Integer, ind_nna::Vector{Int64})
   X = sign.(xi[ind_nna]) .* exp.(log.(abs.(xi[ind_nna])) .- log(qF(prob, p, D)))
   if length(X) == 1
-    val = StatsFuns.normcdf(0.0, √Sigma[1], X[1])
+    val = cdf(Normal(0.0, √Sigma[1]), X[1])
   else
     val = mvnormcdf(MvNormal(Sigma[ind_nna, ind_nna]), repeat([-Inf], length(X)), X)[1]
   end
@@ -240,7 +238,7 @@ dGi = function(xi::Vector{Float64}, Sigma::Matrix{Float64}, p::Real, D::Integer)
       ind_nna[i] = missing # check how missing values will be recorded in the data of interest
     end
   end
-  return quadgk(x -> dGi_fun(x, xi, p, Sigma, D, ind_nna, num_nna), 0, 1; atol = 2e-3)[1]
+  return quadgk(x -> dGi_fun(x, xi, p, Sigma, D, ind_nna, num_nna), 0, 1; rtol = 1e-3)[1]
 end
 
 dGi_fun = function(prob::Real, xi::Vector{Float64}, p::Real, Sigma::Matrix{Float64}, D::Integer, ind_nna::Vector{Int64}, num_nna::Integer)
@@ -256,75 +254,75 @@ end
 ##
 
 # Partial derivatives of the distribution function
-dGI_const = function(x::Matrix{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float64}, p::Real) # x a matrix, I a vector of vectors of indices of threshold exceedances for eahc row of x
+dGI_const = function(x::Matrix{Float64}, I::Vector{Vector{Int64}}, Σ::Matrix{Float64}, p::Real) # I a vector of vectors of indices of threshold exceedances for each row of x
   (n, D) = size(x)
   res = Vector{Float64}(undef, n)
   for i in 1:n
-    res[i] = dGIi(x[i, :], I[i], D, Sigma, p)
+    res[i] = dGIi(x[i, :], I[i], D, Σ, p)
   end
   return res
 end
 
-dGI(x::Matrix{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float64}, p::Real) = dGI_const(x, I, Sigma,p)
-dGI(x::Vector{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float64}, p::Real) = dGI_const(reshape(x, (1,size(Sigma,1))), I, Sigma,p)
+dGI(x::Matrix{Float64}, I::Vector{Vector{Int64}}, Σ::Matrix{Float64}, p::Real) = dGI_const(x, I, Σ,p)
+dGI(x::Vector{Float64}, I::Vector{Vector{Int64}}, Σ::Matrix{Float64}, p::Real) = dGI_const(reshape(x, (1, size(Σ, 1))), I, Σ, p)
 
 
-dGIi = function(xi::Vector{Float64}, I::Vector{Int64}, D::Integer, Sigma::Matrix{Float64}, p::Real)
-  nI = length(I)
-  ind_nna = Vector{Int64}(undef, length(xi))
+dGIi = function(xᵢ::Vector{Float64}, I::Vector{Int64}, D::Integer, Σ::Matrix{Float64}, p::Real)
+  n_I = length(I)
+  ind_nna = Vector{Int64}(undef, length(xᵢ))
   num_nna = 0
-  for i in eachindex(xi) # this should probably be rewritten without loop
-    if !ismissing(xi[i])
+  for i in eachindex(xᵢ) # this should probably be rewritten without loop
+    if !ismissing(xᵢ[i])
       ind_nna[i] = i
       num_nna = num_nna + 1
     else
       ind_nna[i] = missing # look up how missing obs will be treated in empirical data
     end
   end
-  # parameters for the conditional distribution of x[I^c] | x[I]
-  Sigma_II = Sigma[I, I] # might need to reshape to force it to be a matrix
-  Sigma_II_m1 = inv(Sigma_II)
-  Sigma_IcI = Sigma[Not(I), I] # NEED FIX: should also exclude rows with missing values
-  Sigma_IcIc = Sigma[Not(I), Not(I)] # NEED FIX: should also exclude rows and columns with missing values
-  Sigma_IIc = permutedims(Sigma_IcI)
-  mu_1 = Sigma_IcI * Sigma_II_m1 * xi[I]
-  sig_1 = Sigma_IcIc .- Sigma_IcI * Sigma_II_m1 * Sigma_IIc
-  return quadgk(x -> dGIi_fun(x, xi, I, p, D, num_nna, nI, Sigma_II, mu_1, sig_1), 0, 1, atol = 2e-3)[1]
+  # parameters for the conditional distribution of x_Iᶜ | x_I (non-exceedances given exceedances)
+  # see eq. (6) in Huset et al. (2017)
+  Σ_II = Σ[I, I]
+  Σ_II_m1 = inv(Σ_II)
+  Σ_IᶜI = Σ[Not(I), I] #NEED FIX: should also exclude rows with missing values
+  Σ_IᶜIᶜ = Σ[Not(I), Not(I)] # NEED FIX: should also exclude rows and columns with missing values
+  Σ_IIᶜ = permutedims(Σ_IᶜI)
+  x_Iᶜ = xᵢ[Not(I)] .- Σ_IᶜI * Σ_II_m1 * xᵢ[I]  # E(x_(Iᶜ)|x_(I)) = μ_Iᶜ + Σ_(Iᶜ;I) * Σ_(I;I)⁽⁻¹⁾ * (x_I - μ_I). NEED FIX: should also exclude missing values from xᵢ
+  Σ_Iᶜ = Σ_IᶜIᶜ .- Σ_IᶜI * Σ_II_m1 * Σ_IIᶜ # Var(x_(Iᶜ)|x_(I)) = Σ_(Iᶜ|I) = Σ_(Iᶜ;Iᶜ) - Σ_(Iᶜ;I) * Σ_(I;I)⁽⁻¹⁾ * Σ_(I;Iᶜ)
+  return quadgk(x -> dGIi_fun(x, xᵢ, x_Iᶜ, I, p, D, num_nna, n_I, Σ_II, Σ_Iᶜ), 0, 1, rtol = 1e-3)[1]
 end
 
-dGIi_fun = function(prob::Real, xi::Vector{Float64}, I::Vector{Int64}, p::Real, D::Integer, num_nna::Integer, nI::Integer, Sigma_II::Matrix{Float64}, mu_1::Vector{Float64}, sig_1::Matrix{Float64})
-  XI_centerd = xi[Not(I)] .- mu_1 # NEED FIX: should also exclude missing values from xi
+dGIi_fun = function(prob::Real, xᵢ::Vector{Float64}, x_Iᶜ::Vector{Float64}, I::Vector{Int64}, p::Real, D::Integer, num_nna::Integer, n_I::Integer, Σ_II::Matrix{Float64}, Σ_Iᶜ::Matrix{Float64})
   log_qF = qF(prob, p, D)
-  X = reshape(sign.(xi[I]) .* exp.(log.(abs.(xi[I])) .- log_qF), nI)
+  X = reshape(sign.(xᵢ[I]) .* exp.(log.(abs.(xᵢ[I])) .- log_qF), n_I)
   if length(X) == 1
-    val = logpdf(Normal(Sigma_II[1]), X[1]) .- nI .* log_qF
+    val = logpdf(Normal(√Σ_II[1]), X[1]) .- log_qF
   else
-    val = logpdf(MvNormal(Sigma_II), X) .- nI .* log_qF
+    val = logpdf(MvNormal(Σ_II), X) .- n_I * log_qF
   end
-  if (nI < num_nna)
-    X2 = reshape(sign.(XI_centerd) .* exp.(log.(abs.(XI_centerd)) .- log_qF), length(XI_centerd))
-    val = val .+ gauss_fun(X2, sig_1)
+  if (n_I < num_nna)
+    X2 = reshape(sign.(x_Iᶜ) .* exp.(log.(abs.(x_Iᶜ)) .- log_qF), length(x_Iᶜ)) 
+    val = val .+ gauss_fun(X2, Σ_Iᶜ)
   end
   return exp.(val)
 end
 
-gauss_fun = function(up::Vector{Float64}, Sigma::Matrix{Float64})
+gauss_fun = function(up::Vector{Float64}, Σ_Iᶜ::Matrix{Float64})
   if length(up) == 1
-    gauss_res = map(max, 0, StatsFuns.normcdf(0.0, Sigma[1], up[1]))
+    gauss_res = map(max, 1e-100, cdf(Normal(√Σ_Iᶜ[1]), up[1]))
   else
-    if !isposdef(Sigma)
-      sig_chol = cholesky(Positive, Sigma)
-      Sigma = PDMat(sig_chol.L * transpose(sig_chol.L))
+    if !isposdef(Σ_Iᶜ)
+      sig_chol = cholesky(Positive, Σ_Iᶜ)
+      Σ_Iᶜ = PDMat(sig_chol.L * transpose(sig_chol.L))
     end
-    gauss_res = map(max, 0, mvnormcdf(MvNormal(Sigma), repeat([-Inf], length(up)), up)[1])
+    gauss_res = map(max, 1e-100, mvnormcdf(MvNormal(Σ_Iᶜ), repeat([-Inf], length(up)), up)[1])
   end
-  return log.(map(min, 1, gauss_res))
+  return log.(map(min, 1, gauss_res)) # could perhaps become log(0)
 end
 ##
 
 # Random generator from the joint distribution G
 function rG(n::Integer, Sigma::Matrix{Float64}, p::Real)
-  R = rF(n, p, size(Sigma,1))
+  R = rF(n, p, size(Sigma, 1))
   W = rand(MvNormal(Sigma), n)
   return R .* permutedims(W)
 end
@@ -338,36 +336,36 @@ pCconst = function(u::Matrix{Float64}, Sigma::Matrix{Float64}, p::Real) # u shou
   return pG(qG1(u, p), Sigma, p)
 end
 
-pC(u::Matrix{Float64}, Sigma::Matrix{Float64}, p::Real) = pCconst(u,Sigma,p)
-pC(u::Vector{Float64}, Sigma::Matrix{Float64}, p::Real) = pCconst(reshape(u, (1,size(Sigma,1))),Sigma,p)
+pC(u::Matrix{Float64}, Sigma::Matrix{Float64}, p::Real) = pCconst(u, Sigma, p)
+pC(u::Vector{Float64}, Sigma::Matrix{Float64}, p::Real) = pCconst(reshape(u, (1,size(Sigma,1))), Sigma, p)
 
 # Copula density (PDF)
-dCconst = function(u::Matrix{Float64}, Sigma::Matrix{Float64}, p::Real)
+dCconst = function(u::Matrix{Float64}, Σ::Matrix{Float64}, p::Real)
   qG1_val = qG1(u, p)
-  return logpdf(MvEpd(p, Sigma), permutedims(qG1_val)) .- sum(log.(dG1(qG1_val, p)), dims = 2)
+  return logpdf(MvEpd(p, Σ), permutedims(qG1_val)) .- sum(log.(dG1(qG1_val, p)), dims = 2)
 end
 
-dC(u::Matrix{Float64}, Sigma::Matrix{Float64}, p::Real) = dCconst(u,Sigma,p)
-dC(u::Vector{Float64}, Sigma::Matrix{Float64}, p::Real) = dCconst(reshape(u, (1,size(Sigma,1))),Sigma,p)
+dC(u::Matrix{Float64}, Σ::Matrix{Float64}, p::Real) = dCconst(u, Σ, p)
+dC(u::Vector{Float64}, Σ::Matrix{Float64}, p::Real) = dCconst(reshape(u, (1, size(Σ, 1))), Σ, p)
 
 # Partial derivatives of the copula distribution C
-dCI_const = function(u::Matrix{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float64}, p::Real)
+dCI_const = function(u::Matrix{Float64}, I::Vector{Vector{Int64}}, Σ::Matrix{Float64}, p::Real)
   (n, D) = size(u)
-  res_1 = Matrix{Float64}(undef, n, D)
-  res_2 = 0. #Vector{Float64}(undef, n)
+  res₁ = Matrix{Float64}(undef, n, D)
+  res₂ = 0. #Vector{Float64}(undef, n)
   for i in 1:n
-    res_1[i, :] = qG1(reshape(u[i, :], 1, D), p)
-    res_2 += length(I[i]) > 0 ? dCI_fun(u[i, :], I[i], p) : 0 # -Inf if I[i] = []...
+    res₁[i, :] = qG1(reshape(u[i, :], 1, D), p)
+    res₂ += length(I[i]) > 0 ? dCI_fun(u[i, :], I[i], p) : 0 # -Inf if I[i] = []...
   end
-  return log.(dGI(res_1, I, Sigma, p)) .- (res_2 == 0 ? 0 : log.(res_2))
+  return log.(dGI(res₁, I, Σ, p)) .- (res₂ == 0 ? 0 : log.(res₂))
 end
 
-dCI(u::Matrix{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float64}, p::Real) = dCI_const(u,I,Sigma,p)
-dCI(u::Vector{Float64}, I::Vector{Vector{Int64}}, Sigma::Matrix{Float64}, p::Real) = dCI_const(reshape(u, (1,size(Sigma,1))),I,Sigma,p)
+dCI(u::Matrix{Float64}, I::Vector{Vector{Int64}}, Σ::Matrix{Float64}, p::Real) = dCI_const(u, I, Σ, p)
+dCI(u::Vector{Float64}, I::Vector{Vector{Int64}}, Σ::Matrix{Float64}, p::Real) = dCI_const(reshape(u, (1, size(Σ, 1))), I, Σ, p)
 
-dCI_fun = function(u_i::Vector{Float64}, I_i::Vector{Int64}, p::Real)
-  u_i_mat = reshape(u_i[I_i], 1, length(I_i))
-  return sum(dG1(qG1(u_i_mat, p), p))
+dCI_fun = function(uᵢ::Vector{Float64}, Iᵢ::Vector{Int64}, p::Real)
+  uᵢ_mat = reshape(uᵢ[Iᵢ], 1, length(Iᵢ))
+  return sum(dG1(qG1(uᵢ_mat, p), p))
 end
 
 # Random generator from the copula
