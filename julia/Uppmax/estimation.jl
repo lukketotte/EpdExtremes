@@ -6,15 +6,15 @@ using Distributed, SharedArrays, JLD2
 @everywhere using .MepdCopula, .Utils
 
 dimension = 2
-nObs = 10*nprocs()
+nObs = 20*nprocs()
 
 
 #Random.seed!(321)
-true_par = [log(0.1), 1., 0.5];
+true_par = [1., 1., 0.5];
 coord = rand(dimension, 2)
 dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
 cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
-dat = rC(nObs, cor_mat, true_par[3])
+dat = rC(nObs, cor_mat, 0.5)
 (n, D) = size(dat)
 
 function nllik(param::Vector{Float64}, dat::Matrix{Float64}, coord::Matrix{Float64}, n::Integer, D::Integer, ncores::Integer)
@@ -54,14 +54,14 @@ end
 
 function nllik(param::Vector{Float64}, dat::Matrix{Float64}, coord::Matrix{Float64}, thres::Real, ncores::Integer)
     # check conditions on parameters
-    if !cond_cor(param)
+    if !cond_cor([1., 1., param[1]]) # check conditions on parameters
         return 1e+10
     end
     (n,D) = size(dat)
     inds, I_exc, I_nexc, I_nexc_nb, I_nexc_len, I1, I2 = censoring(dat, thres) # I have no idea what all these are
     # matrix of correlations in W
     dists = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
-    Sigmab = cor_fun(reshape(sqrt.(dists[1, :] .^ 2 .+ dists[2, :] .^ 2), D, D), param)
+    Sigmab = cor_fun(reshape(sqrt.(dists[1, :] .^ 2 .+ dists[2, :] .^ 2), D, D), [1., 1., param[1]])
     if !isposdef(Sigmab)
         return 1e+10
     end
@@ -78,7 +78,7 @@ function nllik(param::Vector{Float64}, dat::Matrix{Float64}, coord::Matrix{Float
     # fully censored observations
     contrib3 = SharedArray{Float64}(length(I_nexc_nb))
     @sync @distributed for i in eachindex(I_nexc_nb)
-        contrib3[i] = sum(I_nexc_nb[i] .* pC(reshape(repeat([thres], I_nexc_len[i]), I_nexc_len[i], 1), Sigmab[I_nexc[i], I_nexc[i]], param[3]))
+        contrib3[i] = sum(I_nexc_nb[i] .* pC(reshape(repeat([thres], I_nexc_len[i]), I_nexc_len[i], 1), Sigmab[I_nexc[i], I_nexc[i]], param[1]))
     end
     
     return sum(nllik_res) - sum(contrib3)
@@ -97,15 +97,15 @@ nllik_block_cens = function (block::Integer, dat::Matrix{Float64}, I_exc::Vector
     contrib1 = 0
     contrib2 = 0
     if sum(I1[inds][ind_block]) > 0 # no censoring
-        contrib1 = sum(dC(reshape(dat[inds, :][ind_block, :][I1[inds][ind_block], :], sum(I1[inds][ind_block]), size(Sigmab, 1)), Sigmab, param[3]))
+        contrib1 = sum(dC(reshape(dat[inds, :][ind_block, :][I1[inds][ind_block], :], sum(I1[inds][ind_block]), size(Sigmab, 1)), Sigmab, param[1]))
     end
     if sum(I2[inds][ind_block]) > 0 # partial censoring
-        contrib2 = sum(dCI(reshape(dat[inds, :][ind_block, :][I2[inds][ind_block], :], sum(I2[inds][ind_block]), size(Sigmab, 1)), I_exc[inds][ind_block][I2[inds][ind_block]], Sigmab, param[3]))
+        contrib2 = sum(dCI(reshape(dat[inds, :][ind_block, :][I2[inds][ind_block], :], sum(I2[inds][ind_block]), size(Sigmab, 1)), I_exc[inds][ind_block][I2[inds][ind_block]], Sigmab, param[1]))
     end
     return -(contrib1 + contrib2)
 end
 
-x = optimize(x -> nllik(x, dat, coord, 0.9, nprocs()), true_par, NelderMead(), 
+x = optimize(x -> nllik(x, dat, coord, 0.9, nprocs()), [0.5], NelderMead(), 
                    Optim.Options(g_tol = 1e-4, # default 1e-8
                                  show_trace = true,
                                  show_every = 1,
@@ -114,3 +114,4 @@ x = optimize(x -> nllik(x, dat, coord, 0.9, nprocs()), true_par, NelderMead(),
 
 
 jldsave("test.jld2"; x)
+
