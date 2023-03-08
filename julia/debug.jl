@@ -4,6 +4,7 @@ using Plots
 include("./Distributions/mepd.jl")
 using .MultivariateEpd
 
+# OBS: β is p, following notation in MEPD paper
 f(w::Real, t::Real, β::Real, n::Int) = w^((1-n)/2-1) * (1-w)^((n-1)/2 -1) * exp(-0.5*(t/w)^β);
 g(t::Real, β::Real, n::Int) = t^((n-1)/2) * quadgk(w -> f(w, t, β, n), 0,1; atol = 2e-3)[1];
 K(β::Real, n::Int) = n*gamma(n/2)/(π^(n/2)*gamma(1+n/(2*β))*2^(1+n/(2*β)))
@@ -17,7 +18,7 @@ qF(p::Real, β::Real, n::Int, c::Real; intval = 20) = find_zero(x -> qF₁(x, p,
 ### censored likelihood on original scale
 
 # test
-d = MvEpd(0.8, [1. 0.2 ; 0.2 1]);
+d = MvEpd(0.6, [1. 0.2 ; 0.2 1]);
 X = mapslices(sortperm, repd(100,d); dims = 1) ./ (size(X, 1)+1)
 scatter(X[:, 1], X[:, 2])
 
