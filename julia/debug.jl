@@ -1,33 +1,52 @@
-using Distributions, QuadGK, LinearAlgebra, Roots, SpecialFunctions
+using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions
+using Plots
 
-g(x::Float64, p::Real) = exp(-abs(x)^p/2) / (π * gamma(1+1/p) * 2^(1/p))
-f(y::Float64, x::Float64, p::Real) = (y-x^2 + 1.e-20)^(-1/2) * g(y, p)
-depd(x::Float64, p::Real) = quadgk(y -> f(y, x, p), x^2, Inf; atol=3e-2)[1]
-pepd(x::Float64, p::Real) = 1/2 + quadgk(y -> depd(y, p), 0, x; atol=3e-2)[1]
+include("./Distributions/mepd.jl")
+using .MultivariateEpd
 
-# dG1 and depd should give the same_vec
-dG1([2. 12.], 0.9)
-depd(12., 0.9)
+f(w::Real, t::Real, β::Real, n::Int) = w^((1-n)/2-1) * (1-w)^((n-1)/2 -1) * exp(-0.5*(t/w)^β);
+g(t::Real, β::Real, n::Int) = t^((n-1)/2) * quadgk(w -> f(w, t, β, n), 0,1; atol = 2e-3)[1];
+df(x::Real, β::Real, n::Int) = abs(x) > 1e-10 ? g(x^2, β, n) : g(1e-20, β, n)
+dF(x::Real, β::Real, n::Int, c::Real) = quadgk(y -> c*df(y, β,n),-Inf,x; atol = 2e-3)[1]
+qF₁(x::Real, p::Real, β::Real, n::Int, c::Real) = dF(x, β, n, c) - p
+qF(p::Real, β::Real, n::Int, c::Real; intval = 20) = find_zero(x -> qF₁(x, p, β, n, c), (-intval,intval), xatol=2e-3)
 
+# test
+X = mapslices(sortperm, repd(100, MvEpd(0.7, [1. 0.9 ; 0.9 1])); dims = 1) ./ (size(X, 1)+1)
 
+# check vals
+β = 0.65
+c = 2*quadgk(x -> df(x, β, 2), 0, Inf; atol = 2e-3)[1]
+dF(30, 0.65, 2, 1/c) # make sure its close to 1 and not bugging out 
+U = mapslices(x -> qF.(x, β, 2, 1/c; intval = 30), X; dims = 1);
+d = MvEpd(β, diagm([1, 1]));
+sum(logpdf(d, U'))+sum(log.(df.(reshape(U, (prod(size(U)),)), β, 2) ./c))
 
-function qepd(prob::Real, p::Real)
-  f(x) = pepd(x, p) - prob
-  #find_zero(f, x0, Order16())
-  try
-    find_zero(x -> f(x), [-15, 15], xatol=2e-3)
-  catch e
-    find_zero(x -> f(x), [-500, 500], xatol=2e-3)
-  end
-end
+β = 0.7
+c = 2*quadgk(x -> df(x, β, 2), 0, Inf; atol = 2e-3)[1]
+U = mapslices(x -> qF.(x, β, 2, 1/c), X; dims = 1);
+sum(logpdf(d, U'))+sum(log.(df.(reshape(U, (prod(size(U)),)), β, 2) ./c))
 
-function C1(x::Float64, y::Float64, p::Real, ρ::Real)
-  1/√(1-ρ^2) * g((x^2 + y^2 - 2*ρ*x*y)/(1-ρ^2), p)
-end
-inner(v::Real, y::Real, p::Real, ρ::Real) = quadgk(x -> C1(y, x, p, ρ), -Inf, qepd(v, p); atol=3e-2)[1]
-C(u::Real, v::Real, p::Real, ρ::Real) = quadgk(y -> inner(v, y, p, ρ), -Inf, qepd(u, p); atol=3e-2)[1]
-@time C(0.9, 0.9, 0.9, 0.5)
+β = 0.8
+c = 2*quadgk(x -> df(x, β, 2), 0, Inf; atol = 2e-3)[1]
+dF(18, 0.8, 2, 1/c)
+U = mapslices(x -> qF.(x, β, 2, 1/c; intval = 18), X; dims = 1);
+sum(logpdf(d, U'))+sum(log.(df.(reshape(U, (prod(size(U)),)), β, 2) ./c))
 
+β = 0.9
+c = 2*quadgk(x -> df(x, β, 2), 0, Inf; atol = 2e-3)[1]
+dF(5, 0.9, 2, 1/c)
+U = mapslices(x -> qF.(x, β, 2, 1/c; intval = 5), X; dims = 1);
+sum(logpdf(d, U'))+sum(log.(df.(reshape(U, (prod(size(U)),)), β, 2) ./c))
 
-C1(x::Float64, p::Real, ρ::Real, q::Real) = quadgk(y -> C(y, x, p, ρ), -Inf, q)[1]
-C2(p::Real, ρ::Real, q::Real) = quadgk(y -> C1(y, p, ρ, q), -Inf, q; rtol=1e-12)[1]
+β = 0.95
+c = 2*quadgk(x -> df(x, β, 2), 0, Inf; atol = 2e-3)[1]
+dF(5, β, 2, 1/c)
+U = mapslices(x -> qF.(x, β, 2, 1/c; intval = 5), X; dims = 1);
+sum(logpdf(d, U'))+sum(log.(df.(reshape(U, (prod(size(U)),)), β, 2) ./c))
+
+β = 0.98
+c = 2*quadgk(x -> df(x, β, 2), 0, Inf; atol = 2e-3)[1]
+dF(5, β, 2, 1/c)
+U = mapslices(x -> qF.(x, β, 2, 1/c; intval = 5), X; dims = 1);
+sum(logpdf(d, U'))+sum(log.(df.(reshape(U, (prod(size(U)),)), β, 2) ./c))
