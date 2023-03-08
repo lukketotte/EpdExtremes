@@ -18,8 +18,8 @@ qF(p::Real, β::Real, n::Int, c::Real; intval = 20) = find_zero(x -> qF₁(x, p,
 ### censored likelihood on original scale
 
 # test
-d = MvEpd(0.6, [1. 0.2 ; 0.2 1]);
-X = mapslices(sortperm, repd(100,d); dims = 1) ./ (size(X, 1)+1)
+d = MvEpd(0.9, [1. 0.2 ; 0.2 1]);
+X = mapslices(sortperm, repd(150,d); dims = 1) ./ (size(X, 1)+1)
 scatter(X[:, 1], X[:, 2])
 
 vals = zeros(6)
@@ -27,8 +27,8 @@ vals = zeros(6)
 # check vals
 β = 0.5
 c = 2*quadgk(x -> df(x, β, 2), 0, Inf; atol = 2e-3)[1]
-dF(40, β, 2, 1/c) # make sure its close to 1
-U = mapslices(x -> qF.(x, β, 2, 1/c; intval = 40), X; dims = 1);
+dF(30, β, 2, 1/c) # make sure its close to 1
+U = mapslices(x -> qF.(x, β, 2, 1/c; intval = 30), X; dims = 1);
 vals[1] = sum(logpdf(d, U'))-sum(log.(df.(reshape(U, (prod(size(U)),)), β, 2) ./c))
 
 β = 0.65
