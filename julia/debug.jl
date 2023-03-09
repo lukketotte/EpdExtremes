@@ -15,8 +15,41 @@ qF₁(x::Real, p::Real, β::Real, n::Int, c::Real) = dF(x, β, n, c) - p
 qF(p::Real, β::Real, n::Int, c::Real; intval = 20) = find_zero(x -> qF₁(x, p, β, n, c), (-intval,intval), xatol=2e-3)
 
 
-dF(50, 0.5, 2, 1/c)
-### censored likelihood on original scale
+## Estimation
+function loglik(par::AbstractVector{<:Real}, β::Real, c::Real, data::AbstractMatrix{<:Real}, dist::AbstractMatrix{<:Real})
+  if !cond_cor([par..., β]) # check conditions on parameters
+    return 1e+10
+  end
+  cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), size(data, 2), size(data, 2)), par)
+  -sum(logpdf(MvEpd(β, cor_mat), data'))+sum(log.(df.(reshape(data, (prod(size(data)),)), β, 2) ./c))
+end
+
+function loglik(ν::AbstractVector{<:Real}, β::Real, c::Real, data::AbstractMatrix{<:Real}, dist::AbstractMatrix{<:Real})
+  if !cond_cor([ν[1],1.,β]) # check conditions on parameters
+    return 1e+10
+  end
+  cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), size(data, 2), size(data, 2)), [ν[1],1])
+  -sum(logpdf(MvEpd(β, cor_mat), data'))+sum(log.(df.(reshape(data, (prod(size(data)),)), β, size(data, 2)) ./c))
+end
+
+# normal case
+function loglikNormal(ν::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, dist::AbstractMatrix{<:Real})
+  U = mapslices(x -> quantile.(Normal(), x), dat; dims = 1)
+  cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), size(data, 2), size(data, 2)), [ν[1],1])
+  -sum(logpdf(MvNormal(cor_mat), U')) + sum(logpdf.(Normal(), reshape(U, (prod(size(data)),))))
+end
+
+β = 0.8
+c = 2*quadgk(x -> df(x, β, dimension), 0, Inf; atol = 2e-3)[1]
+
+dat = mapslices(sortperm, repd(nObs, d); dims = 1) ./ (nObs+1)
+U = mapslices(x -> qF.(x, β, dimension, 1/c; intval = 20), dat; dims = 1);
+
+optimize(x -> loglikNormal(x, dat, dist), [log(4)], NelderMead()) |> x -> Optim.minimizer(x)
+optimize(x -> loglik(x, β, c, U, dist), [log(4)], NelderMead()) |> x -> Optim.minimizer(x)
+
+##
+
 
 # test
 d = MvEpd(0.7, [1. 0.2 ; 0.2 1]);
