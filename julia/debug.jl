@@ -1,19 +1,21 @@
-using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions
+using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions,Optim
 using Plots
 
 include("./Distributions/mepd.jl")
+include("./utils.jl")
+#include("./FFT.jl")
 using .MultivariateEpd
+using .Utils
 
 # OBS: β is p, following notation in MEPD paper
 f(w::Real, t::Real, β::Real, n::Int) = w^((1-n)/2-1) * (1-w)^((n-1)/2 -1) * exp(-0.5*(t/w)^β);
-g(t::Real, β::Real, n::Int) = t^((n-1)/2) * quadgk(w -> f(w, t, β, n), 0,1; atol = 1e-5)[1];
+g(t::Real, β::Real, n::Int) = t^((n-1)/2) * quadgk(w -> f(w, t, β, n), 0,1; atol = 2e-3)[1];
 K(β::Real, n::Int) = n*gamma(n/2)/(π^(n/2)*gamma(1+n/(2*β))*2^(1+n/(2*β)))
 df(x::Real, β::Real, n::Int) = abs(x) > 1e-10 ? g(x^2, β, n) : g(1e-20, β, n)
 dF(x::Real, β::Real, n::Int, c::Real) = quadgk(y -> c*df(y, β,n),-Inf,x; atol = 1e-5)[1]
 
 qF₁(x::Real, p::Real, β::Real, n::Int, c::Real) = dF(x, β, n, c) - p
 qF(p::Real, β::Real, n::Int, c::Real; intval = 20) = find_zero(x -> qF₁(x, p, β, n, c), (-intval,intval), xatol=2e-3)
-
 
 ## Estimation
 function loglik(par::AbstractVector{<:Real}, β::Real, c::Real, data::AbstractMatrix{<:Real}, dist::AbstractMatrix{<:Real})
@@ -39,14 +41,21 @@ function loglikNormal(ν::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, 
   -sum(logpdf(MvNormal(cor_mat), U')) + sum(logpdf.(Normal(), reshape(U, (prod(size(data)),))))
 end
 
-β = 0.8
-c = 2*quadgk(x -> df(x, β, dimension), 0, Inf; atol = 2e-3)[1]
+dimension = 5
+nObs = 100
+
+true_par = [log(1), 2., 0.8] # lambda, nu, p
+coord = rand(dimension, 2)
+dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
+cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
+d = MvEpd(true_par[3], cor_mat);
 
 dat = mapslices(sortperm, repd(nObs, d); dims = 1) ./ (nObs+1)
+β = 0.8
+c = 2*quadgk(x -> df(x, β, dimension), 0, Inf; atol = 2e-3)[1]
 U = mapslices(x -> qF.(x, β, dimension, 1/c; intval = 20), dat; dims = 1);
-
-optimize(x -> loglikNormal(x, dat, dist), [log(4)], NelderMead()) |> x -> Optim.minimizer(x)
-optimize(x -> loglik(x, β, c, U, dist), [log(4)], NelderMead()) |> x -> Optim.minimizer(x)
+optimize(x -> loglikNormal(x, dat, dist), [log(1)], NelderMead()) |> x -> Optim.minimizer(x)
+optimize(x -> loglik(x, β, c, U, dist), [log(1)], NelderMead()) |> x -> Optim.minimizer(x)
 
 ##
 
