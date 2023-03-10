@@ -1,7 +1,6 @@
 module MepdCopula
 
-export rC, dC, pC, qF, 
-  pF, rF, dF, pG, dG, 
+export rC, dC, pC, rF, pG, dG, 
   qG1, rG, dG1, pG1, dGI, dCI
 
 using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions, StatsFuns, MvNormalCDF, Random, InvertedIndices, PositiveFactorizations, PDMats
