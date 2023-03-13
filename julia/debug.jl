@@ -18,6 +18,10 @@ qF₁(x::Real, p::Real, β::Real, n::Int, c::Real) = dF(x, β, n, c) - p
 qF(p::Real, β::Real, n::Int, c::Real; intval = 20) = find_zero(x -> qF₁(x, p, β, n, c), (-intval,intval), xatol=2e-3)
 
 ## Estimation
+function excProb(exc::Real, β::Real, cor_mat::AbstractMatrix{<:Real}; reps::Int = 10000)
+  mean(mapslices(x -> maximum(x) >= exc, repd(reps, MvEpd(β,cor_mat)); dims = 1))
+end
+
 function loglik(par::AbstractVector{<:Real}, β::Real, c::Real, data::AbstractMatrix{<:Real}, dist::AbstractMatrix{<:Real})
   if !cond_cor([par..., β]) # check conditions on parameters
     return 1e+10
@@ -34,6 +38,16 @@ function loglik(ν::AbstractVector{<:Real}, β::Real, c::Real, data::AbstractMat
   -sum(logpdf(MvEpd(β, cor_mat), data'))+sum(log.(df.(reshape(data, (prod(size(data)),)), β, size(data, 2)) ./c))
 end
 
+function censloglik(ν::AbstractVector{<:Real}, exc::Real, β::Real, c::Real, data::AbstractMatrix{<:Real}, dist::AbstractMatrix{<:Real})
+  if !cond_cor([ν[1],1.,β]) # check conditions on parameters
+    return 1e+10
+  end
+  cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), size(data, 2), size(data, 2)), [ν[1],1])
+  prob = excProb(exc, β, cor_mat; reps = 100000)
+  upper = size(data,1)*(1-prob) .+ prob*pdf(MvEpd(β, cor_mat), data')
+  -sum(log.(upper))+sum(log.(df.(reshape(data, (prod(size(data)),)), β, size(data, 2)) ./c))
+end
+
 # normal case
 function loglikNormal(ν::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, dist::AbstractMatrix{<:Real})
   U = mapslices(x -> quantile.(Normal(), x), dat; dims = 1)
@@ -41,10 +55,10 @@ function loglikNormal(ν::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, 
   -sum(logpdf(MvNormal(cor_mat), U')) + sum(logpdf.(Normal(), reshape(U, (prod(size(data)),))))
 end
 
-dimension = 5
+dimension = 2
 nObs = 100
 
-true_par = [log(1), 1., 0.8] # lambda, nu, p
+true_par = [log(2), 1., 0.8] # lambda, nu, p
 coord = rand(dimension, 2)
 dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
 cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
@@ -56,9 +70,8 @@ c = 2*quadgk(x -> df(x, β, dimension), 0, Inf; atol = 2e-3)[1]
 U = mapslices(x -> qF.(x, β, dimension, 1/c; intval = 20), dat; dims = 1);
 optimize(x -> loglikNormal(x, dat, dist), [log(1)], NelderMead()) |> x -> Optim.minimizer(x)
 optimize(x -> loglik(x, β, c, U, dist), [log(1)], NelderMead()) |> x -> Optim.minimizer(x)
-
+optimize(x -> censloglik(x, 5, β, c, U, dist), [log(1)], NelderMead()) |> x -> Optim.minimizer(x)
 ##
-
 
 # test
 d = MvEpd(0.7, [1. 0.2 ; 0.2 1]);

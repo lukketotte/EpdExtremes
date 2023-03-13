@@ -73,21 +73,18 @@ end
 
 pdf(d::AbstractMvEpd, x::AbstractVector{<:Real}) = exp(logpdf(d, x))
 
-function runifsphere(n::Int, d::Int)
-    d >= 2 || throw(DomainError("dim must be >= 2"))
-    mvnorm = reshape(rand(Normal(), n*d), n, d)
-    rownorms = sqrt.(sum(mvnorm.^2, dims = 1))
-    broadcast(/, mvnorm, rownorms)
+function runifsphere(d::Int)
+    mvnorm = rand(Normal(), d)
+    mvnorm ./ sqrt.(sum(mvnorm.^2))
 end
 
-# TODO: how to implement rand for multivariate sampler?
 function repd(n::Int, d::GenericMvEpd)
     p, dim, μ, Σ = params(d)
-    Σ = Σ^(0.5)
+    Σ = sqrt(Σ)
     res = zeros(n,dim)
     for i ∈ 1:n
-        R = rand(Gamma(dim/(2*p), 1/2)).^(1/(2*p))
-        res[i,:] = μ + R*Σ*runifsphere(1, dim)'
+        R = rand(Gamma(2,dim/(2*p))).^(1/(2*p))
+        res[i,:] = μ + R*Σ*runifsphere(dim)
     end
     res
 end
