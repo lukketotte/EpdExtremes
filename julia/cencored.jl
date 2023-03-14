@@ -67,7 +67,7 @@ opt_res = optimize(x -> loglik_cens(x, dat, dist, thresh), [log(1.), 0.5], Nelde
                             extended_trace = true))
 exp(Optim.minimizer(opt_res)[1])
 Optim.minimizer(opt_res)[2]
-Optim.minimizer(opt_res)[3]
+#Optim.minimizer(opt_res)[3]
 
 par_range = range(0.01, stop = 2, length = 10)
 res = zeros(length(par_range))

@@ -19,7 +19,11 @@ qF(p::Real, β::Real, n::Int, c::Real; intval = 20) = find_zero(x -> qF₁(x, p,
 
 ## Estimation
 function excProb(exc::Real, β::Real, cor_mat::AbstractMatrix{<:Real}; reps::Int = 10000)
-  mean(mapslices(x -> maximum(x) >= exc, repd(reps, MvEpd(β,cor_mat)); dims = 1))
+  mean(mapslices(x -> maximum(x) >= exc, repd(reps, MvEpd(β,cor_mat)); dims = 2))
+end
+
+function excProb(exc::Real, cor_mat::AbstractMatrix{<:Real}; reps::Int = 10000)
+  mean(mapslices(x -> maximum(x) >= exc, rand(MvNormal(cor_mat), reps)'; dims = 2))
 end
 
 function loglik(par::AbstractVector{<:Real}, β::Real, c::Real, data::AbstractMatrix{<:Real}, dist::AbstractMatrix{<:Real})
@@ -43,9 +47,30 @@ function censloglik(ν::AbstractVector{<:Real}, exc::Real, β::Real, c::Real, da
     return 1e+10
   end
   cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), size(data, 2), size(data, 2)), [ν[1],1])
-  prob = excProb(exc, β, cor_mat; reps = 100000)
-  upper = size(data,1)*(1-prob) .+ prob*pdf(MvEpd(β, cor_mat), data')
+  prob = excProb(exc, β, cor_mat; reps = 10000)
+  idx = vec(mapslices(x -> maximum(x) >= exc, data; dims = 2))
+  if sum(idx) > 0
+    upper = sum(idx .!= 0)*(1-prob) .+ prob*pdf(MvEpd(β, cor_mat), data[idx,:]')
+  else
+    upper = repeat([1-prob], length(idx))
+  end
   -sum(log.(upper))+sum(log.(df.(reshape(data, (prod(size(data)),)), β, size(data, 2)) ./c))
+end
+
+function censloglik(ν::AbstractVector{<:Real}, exc::Real, data::AbstractMatrix{<:Real}, dist::AbstractMatrix{<:Real})
+  if !cond_cor([ν[1],1.,β]) # check conditions on parameters
+    return 1e+10
+  end
+  U = mapslices(x -> quantile.(Normal(), x), data; dims = 1)
+  cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), size(data, 2), size(data, 2)), [ν[1],1])
+  prob = excProb(exc, cor_mat; reps = 10000)
+  idx = vec(mapslices(x -> maximum(x) >= exc, U; dims = 2))
+  if sum(idx) > 0
+    upper = sum(idx .!= 0)*(1-prob) .+ prob*pdf(MvNormal(cor_mat), U[idx,:]')
+  else
+    upper = repeat([1-prob], length(idx))
+  end
+  -sum(log.(upper))+ sum(logpdf.(Normal(), reshape(U, (prod(size(U)),))))
 end
 
 # normal case
@@ -55,29 +80,36 @@ function loglikNormal(ν::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, 
   -sum(logpdf(MvNormal(cor_mat), U')) + sum(logpdf.(Normal(), reshape(U, (prod(size(data)),))))
 end
 
-dimension = 2
+dimension = 4
 nObs = 100
 
-true_par = [log(2), 1., 0.8] # lambda, nu, p
+true_par = [log(2), 1., 0.6] # lambda, nu, p
 coord = rand(dimension, 2)
 dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
 cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
 d = MvEpd(true_par[3], cor_mat);
 
 dat = mapslices(sortperm, repd(nObs, d); dims = 1) ./ (nObs+1)
-β = 0.8
+β = 0.6
 c = 2*quadgk(x -> df(x, β, dimension), 0, Inf; atol = 2e-3)[1]
-U = mapslices(x -> qF.(x, β, dimension, 1/c; intval = 20), dat; dims = 1);
+U = mapslices(x -> qF.(x, β, dimension, 1/c; intval = 30), dat; dims = 1);
 optimize(x -> loglikNormal(x, dat, dist), [log(1)], NelderMead()) |> x -> Optim.minimizer(x)
 optimize(x -> loglik(x, β, c, U, dist), [log(1)], NelderMead()) |> x -> Optim.minimizer(x)
-optimize(x -> censloglik(x, 5, β, c, U, dist), [log(1)], NelderMead()) |> x -> Optim.minimizer(x)
+
+excProb(4.5, 0.6, cor_mat)
+excProb(1.7, cor_mat)
+
+optimize(x -> censloglik(x, 4.5, β, c, U, dist), [log(2)], NelderMead()) |> x -> Optim.minimizer(x)
+optimize(x -> censloglik(x, 0.1, dat, dist), [log(2)], NelderMead()) |> x -> Optim.minimizer(x)
 ##
+
+mean(vec(mapslices(x -> maximum(x) >= 5, U; dims = 2)) .== 1)
 
 # test
 d = MvEpd(0.7, [1. 0.2 ; 0.2 1]);
 n = 200
 X = mapslices(sortperm, repd(n,d); dims = 1) ./ (n+1)
-scatter(X[:, 1], X[:, 2])
+scatter(U[:, 1], U[:, 2])
 
 vals = zeros(6)
 # check vals
