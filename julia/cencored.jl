@@ -65,10 +65,10 @@ end
 end
 
 # mepd scale
-dimension = 5
-nObs = 250
+dimension = 10
+nObs = 50
 
-β = 0.6
+β = 0.95
 λ = 0.5
 ν = 1.0
 thres = 0.95
@@ -76,17 +76,35 @@ true_par = [log(λ), ν, β]
 coord = rand(dimension, 2)
 dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
 cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
-d = MvEpd(true_par[3], cor_mat);
+d = MvEpd(β, cor_mat);
 
+# With marginal conversion
+repd(nObs, d)
+dat = mapslices(sortperm, repd(nObs, d); dims = 1) ./ (nObs+1)
+c = 2*quadgk(x -> df(x, β, dimension), 0, Inf; atol = 2e-3)[1]
+U = mapslices(x -> qF.(x, β, dimension, 1/c; intval = 10), dat; dims = 1);
+thresh = quantile.(eachcol(U), thres)
+opt_res = optimize(x -> loglik_cens(x, permutedims(U), dist, thresh), [log(.5), 0.5], NelderMead())
+exp(Optim.minimizer(opt_res)[1])
+
+# normal data
+X = rand(MvNormal(cor_mat), nObs)
+dat = mapslices(sortperm, X; dims = 2) ./ (nObs+1)
+U = mapslices(x -> quantile.(Normal(), x), dat; dims = 1)
+scatter(U[1,:], U[2,:])
+scatter!(X[1,:], X[2,:])
+cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), [Optim.minimizer(opt_res)[1], 1.])
+
+# Without any marginal conversion
 ncores = 5
-reps = 10
+reps = 200
 mepdRes = SharedArray{Float64}((ncores*reps,2))
 normRes = SharedArray{Float64}((ncores*reps))
 
 @sync @distributed for i in 1:(ncores*reps)
   println("iter: $i")
-  #dat = repd(nObs, d)'
-  dat = rand(MvTDist(3, cor_mat), nObs) 
+  dat = permutedims(repd(nObs, d))
+  #dat = rand(MvTDist(6, cor_mat), nObs) 
   #dat = rand(MvNormal(cor_mat), nObs)
   thresh = quantile.(eachcol(dat), thres)
   # MEPD
@@ -100,8 +118,9 @@ normRes = SharedArray{Float64}((ncores*reps))
 end
 
 boxplot(hcat(normRes, mepdRes), labels = permutedims(["λ normal", "λ epd", "β"]))
-plot!(legend=:bottomright, legendcolumns=3)
+#plot!(legend=:bottomright, legendcolumns=3)
 
-mean(normRes)
-mean(mepdRes[:,1])
-mean(mepdRes[:,2])
+#using DataFrames, CSV
+
+
+CSV.write("mepd_08_$(dimension).csv", DataFrame(normal = normRes, epd = mepdRes[:,1], beta = mepdRes[:, 2], dim = dimension))
