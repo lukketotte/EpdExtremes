@@ -149,3 +149,95 @@ U = mapslices(x -> qF.(x, β, 2, 1/c; intval = 5), X; dims = 1);
 vals[6] = sum(logpdf(d, U'))-sum(log.(df.(reshape(U, (prod(size(U)),)), β, 2) ./c))
 
 plot(vals)
+
+
+#####
+
+@everywhere function cens(data::AbstractMatrix{<:Real}, thresh::Real)
+  dat_cens = deepcopy(data)
+  dat_cens[data.<thresh] .= thresh
+  (n, D) = size(dat_cens)
+  # 2023-01-12 skip checks for missing values for now
+  n_sites = zeros(Int64, n)
+  for i in 1:n
+      n_sites[i] = sum(.!ismissing.(dat_cens[i, :]))
+  end
+  I_exc = Vector{Vector{Int64}}(undef, n)
+  I_nexc = Vector{Vector{Int64}}(undef, n)
+  for i in 1:n
+    I_exc[i] = findall(dat_cens[i, :] .> thresh) # indices of exceedances
+    I_nexc[i] = findall(dat_cens[i, :] .≤ thresh) # indices of non-exceedances
+  end
+  
+  return I_exc, I_nexc
+end
+#dF = function(x::Real, p::Real, d::Int; tol::Real = 2e-3)
+@everywhere function censoredLik(r::Real, data::AbstractMatrix{<:Real}, β::Real, cor_mat::AbstractMatrix{<:Real}, thresh::Real)
+  (nObs, dimension) = size(data)
+  I_exc, I_nexc = cens(data, thresh)
+  res = zeros(Float64, nObs)
+  for i in 1:nObs
+    if length(I_exc[i]) == dimension
+      res[i] = logpdf(MvEpd(β, cor_mat), data[i,:])*r^(-dimension) + log(dF(r, β, dimension))
+    elseif length(I_nexc[i]) == dimension
+      res[i] = log(mvnormcdf(MvNormal(cor_mat), repeat([-Inf], dimension), repeat([thresh], dimension))[1]) + log(dF(r, β, dimension))
+    else
+      Σe = cor_mat[I_exc[i], I_exc[i]]^(-1)
+      upper = data[i, I_nexc[i]] - cor_mat[I_nexc[i], I_exc[i]]*Σe* data[i, I_exc[i]]
+      Σ = cor_mat[I_nexc[i], I_nexc[i]] - cor_mat[I_nexc[i], I_exc[i]] * Σe * cor_mat[I_exc[i], I_nexc[i]]
+      if length(upper) == 1
+        a = [cdf(Normal(first(Σ)), upper/r)[1], 1.]
+      else
+        try
+          a = mvnormcdf(MvNormal(Σ), repeat([-Inf], length(upper)), upper./r)
+        catch e
+          if isa(e, PosDefException)
+            a = mvnormcdf(MvNormal(round.(Σ, digits = 10)), repeat([-Inf], length(upper)), upper)
+          end
+        end
+      end
+      b = logpdf(MvNormal(cor_mat[I_exc[i], I_exc[i]]), data[i, I_exc[i]]./r)
+      res[i] = a[2] == 0 ? -Inf : log(a[1]) + b + log(dF(r, β, dimension))
+    end
+  end
+  sum(res[findall(res .!= -Inf)])
+end
+
+function censoredLogLik(data::AbstractMatrix{<:Real}, θ::AbstractVector{<:Real}, thresh::Real, dist::AbstractMatrix{<:Real},
+  mcReps::Int = 1000, ncores::Int = 1)
+  cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), size(data, 2), size(data, 2)), [θ[1],1])
+  if ncores == 1
+    r = rF(mcReps, θ[2], size(cor_mat, 2))
+    mc = [censoredLik(r[i], data, θ[2], cor_mat, thresh) for i in 1:lastindex(r)]
+    return mean(mc), √var(mc)
+  else
+    mc = SharedArray{Float64}((mcReps, ncores))
+    @sync @distributed for i in 1:ncores
+      r = rF(mcReps, θ[2], size(cor_mat, 2))
+      mc[:,i] = [censoredLik(r[i], data, θ[2], cor_mat, thresh) for i in 1:lastindex(r)]
+    end
+    return mean(mc), √var(mc)
+  end
+end
+
+
+dimension = 2
+nObs = 200
+
+true_par = [log(2), 1., 0.5] # lambda, nu, p
+coord = rand(dimension, 2)
+dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
+cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
+d = MvEpd(true_par[3], cor_mat)
+data = repd(nObs, d)
+
+a1,b1,c1 = censoredLogLik(data, [log(2.), 0.8], 3.5, dist, 1000, 6)
+a2,b2,c2 = censoredLogLik(data, [log(2.), 0.6], 3.5, dist, 1000, 6)
+
+res = zeros(Float64, (250, 3))
+for i in 1:250
+  data = repd(nObs, d)
+  res[i,1] = censoredLogLik(data, [log(2.), 0.4], 3.5, dist, 1500, 6)[1]
+  res[i,2] = censoredLogLik(data, [log(2.), 0.4], 3.5, dist, 1500, 6)[1]
+  res[i,3] = censoredLogLik(data, [log(2.), 0.4], 3.5, dist, 1500, 6)[1]
+end
