@@ -16,7 +16,6 @@ using Plots, StatsPlots
 @everywhere qF(p::Real, β::Real, n::Int, c::Real; intval = 20) = find_zero(x -> qF₁(x, p, β, n, c), (-intval,intval), xatol=2e-3)
 
 @everywhere function loglik_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, dist::AbstractMatrix{<:Real}, thres::AbstractVector{<:Real})
-
   if !cond_cor([θ[1], 1., θ[2]]) # check conditions on parameters
     return 1e+10
   end
@@ -26,12 +25,12 @@ using Plots, StatsPlots
     return 1e+10
   end
   
-  #exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
-  #ex_prob = exceedance_prob(10^6, thres, cor_mat, θ[2])
-  ex_prob = 1
-  exc_ind = 1:size(data,2)
+  exc_ind = [i for i in 1:size(data, 2) if any(data[:, i] .> thres)]
+  ex_prob = exceedance_prob(10^4, thres, cor_mat, θ[2])
+  #ex_prob = 1
+  #exc_ind = 1:size(data,2)
 
-  return -((1 - ex_prob) * (size(data, 2) - length(exc_ind)) + sum(logpdf(MvEpd(θ[2], cor_mat), data)))
+  return -(log((1 - ex_prob) * (size(data, 2) - length(exc_ind))) + sum(logpdf(MvEpd(θ[2], cor_mat), data)))
 end
 
 @everywhere function lognorm_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, dist::AbstractMatrix{<:Real}, thres::AbstractVector{<:Real})
@@ -45,12 +44,12 @@ end
     return 1e+10
   end
   
-  #exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
-  #ex_prob = exceedance_prob(10^6, thres, cor_mat)
-  ex_prob = 1
-  exc_ind = 1:size(data,2)
+  exc_ind = [i for i in 1:size(data, 2) if any(data[:, i] .> thres)]
+  ex_prob = exceedance_prob(10^4, thres, cor_mat)
+  #ex_prob = 1
+  #exc_ind = 1:size(data,2)
 
-  return -((1 - ex_prob) * (size(data, 2) - length(exc_ind)) + sum(logpdf(MvNormal(cor_mat), data)))
+  return -(log((1 - ex_prob) * (size(data, 2) - length(exc_ind))) + sum(logpdf(MvNormal(cor_mat), data)))
 end
 #
 
@@ -65,7 +64,7 @@ end
 end
 
 # mepd scale
-dimension = 10
+dimension = 5
 nObs = 50
 
 β = 0.95
@@ -76,7 +75,9 @@ true_par = [log(λ), ν, β]
 coord = rand(dimension, 2)
 dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
 cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
-d = MvEpd(β, cor_mat);
+d = MvEpd(β, cor_mat)
+data = permutedims(repd(nObs, d))
+thresh = 0.9
 
 # With marginal conversion
 repd(nObs, d)
@@ -97,16 +98,16 @@ cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, 
 
 # Without any marginal conversion
 ncores = 5
-reps = 200
+reps = 100
 mepdRes = SharedArray{Float64}((ncores*reps,2))
 normRes = SharedArray{Float64}((ncores*reps))
 
 @sync @distributed for i in 1:(ncores*reps)
   println("iter: $i")
-  dat = permutedims(repd(nObs, d))
-  #dat = rand(MvTDist(6, cor_mat), nObs) 
+  # dat = permutedims(repd(nObs, d))
+  dat = rand(MvTDist(4, cor_mat), nObs) 
   #dat = rand(MvNormal(cor_mat), nObs)
-  thresh = quantile.(eachcol(dat), thres)
+  thresh = quantile.(eachrow(dat), thres)
   # MEPD
   opt_res = optimize(x -> loglik_cens(x, dat, dist, thresh), [log(.5), 0.5], NelderMead())
   mepdRes[i,1] = exp(Optim.minimizer(opt_res)[1])
@@ -118,9 +119,9 @@ normRes = SharedArray{Float64}((ncores*reps))
 end
 
 boxplot(hcat(normRes, mepdRes), labels = permutedims(["λ normal", "λ epd", "β"]))
-#plot!(legend=:bottomright, legendcolumns=3)
+
+mean(mepdRes, dims = 1)
+mean(normRes, dims = 1)
 
 #using DataFrames, CSV
-
-
-CSV.write("mepd_08_$(dimension).csv", DataFrame(normal = normRes, epd = mepdRes[:,1], beta = mepdRes[:, 2], dim = dimension))
+#CSV.write("mepd_08_$(dimension).csv", DataFrame(normal = normRes, epd = mepdRes[:,1], beta = mepdRes[:, 2], dim = dimension))
