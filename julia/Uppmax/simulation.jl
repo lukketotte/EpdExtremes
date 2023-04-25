@@ -65,28 +65,6 @@ cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, 
 #d = MvEpd(β, cor_mat);
 d = MvTDist(2, cor_mat)
 
-#dat = repd(nObs, d)
-dat = permutedims(rand(d, nObs))
-thresh = quantile.(eachcol(dat), thres)
-
-opt_res = optimize(x -> loglik_cens(x, dat, dist, thresh), [log(1.0), 1.0, 0.5], NelderMead(), 
-    Optim.Options(g_tol = 1e-2, show_trace = true, show_every = 5, extended_trace = true))
-                            
-λ_1 = exp(Optim.minimizer(opt_res)[1])
-ν_1 = Optim.minimizer(opt_res)[2]
-β_1 = Optim.minimizer(opt_res)[3]
-
-opt_res = optimize(x -> loglikhuser_cens(x, dat, dist, thresh), [log(1.0), 1.0, 1., 1.], NelderMead(), 
-    Optim.Options(g_tol = 1e-2, show_trace = true, show_every = 5, extended_trace = true))
-                            
-λ_2 = exp(Optim.minimizer(opt_res)[1])
-ν_2 = Optim.minimizer(opt_res)[2]
-θ_2 = Optim.minimizer(opt_res)[3:4]
-
-# AIC
-2*(3 + loglik_cens([log(λ_1), ν_1, β_1], dat, dist, thresh))
-2*(8 + loglikhuser_cens([log(λ_2), ν_2, θ_2...], dat, dist, thresh))
-
 reps = 4*10
 mepd = SharedArray{Float64}(reps, 4)
 huser = SharedArray{Float64}(reps, 5)
