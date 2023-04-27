@@ -20,7 +20,7 @@ using Distributed, SharedArrays, JLD2
     exc_ind = [i for i in 1:size(data, 1) if maximum(data[i, :]) > thres]
     ex_prob = exceedance_prob(10^6, thres, cor_mat, θ[3])
   
-    return -((1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(logpdf(MvEpd(θ[3], cor_mat), transmutedims(data[exc_ind,:]))))
+    return -((1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(logpdf(MvEpd(θ[3], cor_mat), permutedims(data[exc_ind,:]))))
 end
 
 @everywhere function loglikhuser_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, dist::AbstractMatrix{<:Real}, thres::Real)
@@ -39,19 +39,19 @@ end
     return -((1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(log.(dGH(data[exc_ind,:], cor_mat, θ[3:4]))))
 end
 
-@everywhere function exceedance_prob(nSims::Int, thres::AbstractVector{<:Real}, cor_mat::AbstractMatrix{<:Real}, β::Real)
+@everywhere function exceedance_prob(nSims::Int, thres::Real, cor_mat::AbstractMatrix{<:Real}, β::Real)
     sim = repd(nSims, MvEpd(β, cor_mat))
-    return length([i for i in 1:nSims if any(sim[i, :] .> thres)]) / nSims
+    return length([i for i in 1:nSims if maximum(sim[i, :]) > thres]) / nSims
 end
 
-@everywhere function exceedance_prob(nSims::Int, thres::AbstractVector{<:Real}, cor_mat::AbstractMatrix{<:Real}, β::AbstractVector{<:Real})
+@everywhere function exceedance_prob(nSims::Int, thres::Real, cor_mat::AbstractMatrix{<:Real}, β::AbstractVector{<:Real})
     sim = rGH(nSims, cor_mat, β)
-    return length([i for i in 1:nSims if any(sim[i, :] .> thres)]) / nSims
+    return length([i for i in 1:nSims if maximum(sim[i, :]) > thres]) / nSims
 end
 
 
 dimension = 5
-nObs = 500
+nObs = 150
 
 # tycker att vi kan köra dessa inställningar
 λ = 1.0
@@ -66,7 +66,7 @@ cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, 
 #d = MvEpd(β, cor_mat);
 d = MvTDist(2, cor_mat) # kanske testa 2 och 5
 
-reps = 4*5
+reps = 10
 mepd = SharedArray{Float64}(reps, 4)
 huser = SharedArray{Float64}(reps, 5)
 
@@ -76,24 +76,24 @@ huser = SharedArray{Float64}(reps, 5)
     println("iter $(i)")
     # MEPD
     opt_res = optimize(x -> loglik_cens(x, dat, dist, thresh), [log(1.0), 1.0, 0.7], NelderMead(), 
-    Optim.Options(g_tol = 1e-2, show_trace = false, show_every = 5, extended_trace = true))                  
+    Optim.Options(g_tol = 1e-2, show_trace = true, show_every = 5, extended_trace = true))                  
     λ = exp(Optim.minimizer(opt_res)[1])
     ν = Optim.minimizer(opt_res)[2]
     β = Optim.minimizer(opt_res)[3]
-    AIC = 2*(3 + loglik_cens([log(λ_1), ν_1, β_1], dat, dist, thresh))
+    AIC = 2*(3 + loglik_cens([log(λ), ν, β], dat, dist, thresh))
     mepd[i,:] = [λ, ν, β, AIC]
     
     # Huser
     opt_res = optimize(x -> loglikhuser_cens(x, dat, dist, thresh), [log(1.0), 1.0, .08, 2.], NelderMead(), 
-    Optim.Options(g_tol = 1e-2, show_trace = false, show_every = 5, extended_trace = true))                
+    Optim.Options(g_tol = 1e-2, show_trace = true, show_every = 5, extended_trace = true))                
     λ = exp(Optim.minimizer(opt_res)[1])
     ν = Optim.minimizer(opt_res)[2]
     θ = Optim.minimizer(opt_res)[3:4]
-    AIC = 2*(8 + loglikhuser_cens([log(λ_2), ν_2, θ_2...], dat, dist, thresh))
+    AIC = 2*(4 + loglikhuser_cens([log(λ), ν, θ...], dat, dist, thresh))
     huser[i,:] = [λ, ν, θ..., AIC]
 end
 
-mean(mepd[3:reps,:], dims = 1)
+mean(mepd, dims = 1)
 mean(huser, dims = 1)
 
 # later
