@@ -20,7 +20,7 @@ using Distributed, SharedArrays, JLD2
     exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
     ex_prob = exceedance_prob(10^6, thres, cor_mat, θ[3])
   
-    return -((1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(logpdf(MvEpd(θ[3], cor_mat), data[exc_ind, :]')))
+    return -((1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(logpdf(MvEpd(θ[3], cor_mat), transmutedims(data[exc_ind,:]))))
 end
 
 @everywhere function loglikhuser_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, dist::AbstractMatrix{<:Real}, thres::AbstractVector{<:Real})
@@ -36,7 +36,7 @@ end
     
     exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
     ex_prob = exceedance_prob(10^6, thres, cor_mat, θ[3:4])
-    return -((1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(log.(dGH(data, cor_mat, θ[3:4]))))
+    return -((1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(log.(dGH(data[exc_ind,:], cor_mat, θ[3:4]))))
 end
 
 @everywhere function exceedance_prob(nSims::Int, thres::AbstractVector{<:Real}, cor_mat::AbstractMatrix{<:Real}, β::Real)
@@ -51,7 +51,7 @@ end
 
 
 dimension = 5
-nObs = 50 # vi kan test 1000
+nObs = 500
 
 # tycker att vi kan köra dessa inställningar
 λ = 1.0
@@ -66,7 +66,7 @@ cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, 
 #d = MvEpd(β, cor_mat);
 d = MvTDist(2, cor_mat) # kanske testa 2 och 5
 
-reps = 4*10 # huser kör 500 reps så vi kan göra det också tycker jag
+reps = 4*5
 mepd = SharedArray{Float64}(reps, 4)
 huser = SharedArray{Float64}(reps, 5)
 
@@ -75,7 +75,7 @@ huser = SharedArray{Float64}(reps, 5)
     thresh = quantile.(eachcol(dat), thres)
     println("iter $(i)")
     # MEPD
-    opt_res = optimize(x -> loglik_cens(x, dat, dist, thresh), [log(1.0), 1.0, 0.5], NelderMead(), 
+    opt_res = optimize(x -> loglik_cens(x, dat, dist, thresh), [log(1.0), 1.0, 0.7], NelderMead(), 
     Optim.Options(g_tol = 1e-2, show_trace = false, show_every = 5, extended_trace = true))                  
     λ = exp(Optim.minimizer(opt_res)[1])
     ν = Optim.minimizer(opt_res)[2]
@@ -84,7 +84,7 @@ huser = SharedArray{Float64}(reps, 5)
     mepd[i,:] = [λ, ν, β, AIC]
     
     # Huser
-    opt_res = optimize(x -> loglikhuser_cens(x, dat, dist, thresh), [log(1.0), 1.0, 1., 1.], NelderMead(), 
+    opt_res = optimize(x -> loglikhuser_cens(x, dat, dist, thresh), [log(1.0), 1.0, .08, 2.], NelderMead(), 
     Optim.Options(g_tol = 1e-2, show_trace = false, show_every = 5, extended_trace = true))                
     λ = exp(Optim.minimizer(opt_res)[1])
     ν = Optim.minimizer(opt_res)[2]
@@ -93,7 +93,7 @@ huser = SharedArray{Float64}(reps, 5)
     huser[i,:] = [λ, ν, θ..., AIC]
 end
 
-mean(mepd, dims = 1)
+mean(mepd[3:reps,:], dims = 1)
 mean(huser, dims = 1)
 
 # later
