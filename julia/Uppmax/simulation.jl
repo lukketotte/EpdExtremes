@@ -6,7 +6,7 @@ using Distributed, SharedArrays, JLD2
 @everywhere include("../Huser/FFThuser.jl")
 @everywhere using .MultivariateEpd, .Utils, .HuserCopula
 
-@everywhere function loglik_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, dist::AbstractMatrix{<:Real}, thres::AbstractVector{<:Real})
+@everywhere function loglik_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, dist::AbstractMatrix{<:Real}, thres::Real)
 
     if !cond_cor(θ) # check conditions on parameters
       return 1e+10
@@ -17,13 +17,13 @@ using Distributed, SharedArrays, JLD2
       return 1e+10
     end
     
-    exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
+    exc_ind = [i for i in 1:size(data, 1) if maximum(data[i, :]) > thres]
     ex_prob = exceedance_prob(10^6, thres, cor_mat, θ[3])
   
     return -((1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(logpdf(MvEpd(θ[3], cor_mat), transmutedims(data[exc_ind,:]))))
 end
 
-@everywhere function loglikhuser_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, dist::AbstractMatrix{<:Real}, thres::AbstractVector{<:Real})
+@everywhere function loglikhuser_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, dist::AbstractMatrix{<:Real}, thres::Real)
 
     if !cond_cor(θ) # check conditions on parameters
       return 1e+10
@@ -34,7 +34,7 @@ end
       return 1e+10
     end
     
-    exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
+    exc_ind = exc_ind = [i for i in 1:size(data, 1) if maximum(data[i, :]) > thres]
     ex_prob = exceedance_prob(10^6, thres, cor_mat, θ[3:4])
     return -((1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(log.(dGH(data[exc_ind,:], cor_mat, θ[3:4]))))
 end
@@ -72,7 +72,7 @@ huser = SharedArray{Float64}(reps, 5)
 
 @sync @distributed for i in 1:reps
     dat = permutedims(rand(d, nObs))
-    thresh = quantile.(eachcol(dat), thres)
+    thresh = median(quantile.(eachcol(dat), thres))
     println("iter $(i)")
     # MEPD
     opt_res = optimize(x -> loglik_cens(x, dat, dist, thresh), [log(1.0), 1.0, 0.7], NelderMead(), 
