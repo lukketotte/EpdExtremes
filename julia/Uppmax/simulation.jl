@@ -76,7 +76,7 @@ huser = SharedArray{Float64}(reps, 5)
     println("iter $(i)")
     # MEPD
     opt_res = optimize(x -> loglik_cens(x, dat, dist, thresh), [log(1.0), 1.0, 0.7], NelderMead(), 
-    Optim.Options(g_tol = 1e-2, show_trace = true, show_every = 5, extended_trace = true))                  
+    Optim.Options(f_tol = 1e-6, show_trace = true, show_every = 5))                  
     λ = exp(Optim.minimizer(opt_res)[1])
     ν = Optim.minimizer(opt_res)[2]
     β = Optim.minimizer(opt_res)[3]
@@ -85,7 +85,7 @@ huser = SharedArray{Float64}(reps, 5)
     
     # Huser
     opt_res = optimize(x -> loglikhuser_cens(x, dat, dist, thresh), [log(1.0), 1.0, .08, 2.], NelderMead(), 
-    Optim.Options(g_tol = 1e-2, show_trace = true, show_every = 5, extended_trace = true))                
+    Optim.Options(f_tol = 1e-6, show_trace = true, show_every = 5))                
     λ = exp(Optim.minimizer(opt_res)[1])
     ν = Optim.minimizer(opt_res)[2]
     θ = Optim.minimizer(opt_res)[3:4]
