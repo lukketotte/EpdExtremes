@@ -32,13 +32,13 @@ function loglik_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, d
   exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
   ex_prob = exceedance_prob(10^6, thres, cor_mat, θ[3])
 
-  return -((1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(logpdf(MvEpd(θ[3], cor_mat), data')))
+  return -((1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(logpdf(MvEpd(θ[3], cor_mat), data[exc_ind, :]')))
 end
 #
 
 function exceedance_prob(nSims::Int, thres::AbstractVector{<:Real}, cor_mat::AbstractMatrix{<:Real}, β::Real)
   sim = repd(nSims, MvEpd(β, cor_mat))
-  return length([i for i in 1:nObs if any(sim[i, :] .> thres)]) / nSims
+  return length([i for i in 1:nSims if any(sim[i, :] .> thres)]) / nSims
 end
 
 # mepd scale

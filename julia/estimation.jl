@@ -65,14 +65,14 @@ res = optimize(x -> nllik(x, dat, coord, n, D, nprocs()), true_par, NelderMead()
 #
 
 
-ncores = 5
+ncores = 1
 dimension = 5
 nObs = ncores * 10
-true_par = [log(0.5), 0.5, 0.7] # lambda, nu, p
+true_par = [log(1.0), 1.0, 0.7] # lambda, nu, p
 coord = rand(dimension, 2)
 dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
 cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
-dat = rC(nObs, cor_mat, true_par[3])
+dat = @time rC(nObs, cor_mat, true_par[3])
 quant = 0.8
 thresh = quantile(vec(dat), quant)
 
@@ -113,7 +113,8 @@ function nllik(param::Vector{Float64}, dat::Matrix{Float64}, coord::Matrix{Float
 
     # fully censored observations
     contrib3 = SharedArray{Float64}(length(I_nexc_nb))
-    @sync @distributed for i in eachindex(I_nexc_nb)
+    # @sync @distributed for i in eachindex(I_nexc_nb)
+    Threads.@threads for i in eachindex(I_nexc_nb)
         contrib3[i] = sum(I_nexc_nb[i] .* pC(reshape(repeat([thres], I_nexc_len[i]), I_nexc_len[i], 1), Sigmab[I_nexc[i], I_nexc[i]], param[3]))
     end
     
@@ -142,7 +143,7 @@ nllik_block_cens = function (block::Integer, dat::Matrix{Float64}, I_exc::Vector
 end
 
 # dat = rC(nprocs() * 20, cor_mat, 0.2)
-nllik([log(1.), 1., 0.2], dat, coord, thresh, ncores)
+@time nllik([log(1.), 1., 0.2], dat, coord, thresh, ncores)
 nllik([log(1.), 1., 0.5], dat, coord, thresh, ncores)
 nllik([log(1.), 1., 0.7], dat, coord, thresh, ncores)
 nllik([log(1.), 1., 0.8], dat, coord, thresh, ncores)

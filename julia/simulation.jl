@@ -19,7 +19,7 @@ qF(p::Real, β::Real, n::Int, c::Real; intval = 20) = find_zero(x -> qF₁(x, p,
 # estimate exceedance probability
 function exceedance_prob(nSims::Int, thres::AbstractVector{<:Real}, cor_mat::AbstractMatrix{<:Real}, β::Real)
     sim = repd(nSims, MvEpd(β, cor_mat))
-    return length([i for i in 1:nObs if any(sim[i, :] .> thres)]) / nSims
+    return length([i for i in 1:nSims if any(sim[i, :] .> thres)]) / nSims
 end
 
 # censored loglikelihood
@@ -37,20 +37,22 @@ function loglik_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, d
   exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
   ex_prob = exceedance_prob(10^6, thres, cor_mat, θ[3])
 
-  return -((1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(logpdf(MvEpd(θ[3], cor_mat), data')))
+  return -((1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(logpdf(MvEpd(θ[3], cor_mat), data[exc_ind,:]')))
 end
 #
 
 # simulation
 reps = 1000
-dimension = 10
+dimension = 5
 nObs = 1000
 
 thres = 0.95
-λ = 1.0 # {0.5, 1}
+λ = 0.5 # {0.5, 1}
 ν = 1.0 # {1.0}
 β = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 # true_par = [log(λ), ν, β]
+
+Threads.nthreads()
 
 for l in eachindex(β)
   true_par = [log(λ), ν, β[l]]

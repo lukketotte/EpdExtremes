@@ -20,7 +20,7 @@ using Distributed, SharedArrays, JLD2
     exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
     ex_prob = exceedance_prob(10^6, thres, cor_mat, θ[3])
   
-    return -((1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(logpdf(MvEpd(θ[3], cor_mat), data')))
+    return -((1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(logpdf(MvEpd(θ[3], cor_mat), data[exc_ind, :]')))
 end
 
 @everywhere function loglikhuser_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, dist::AbstractMatrix{<:Real}, thres::AbstractVector{<:Real})
@@ -41,18 +41,19 @@ end
 
 @everywhere function exceedance_prob(nSims::Int, thres::AbstractVector{<:Real}, cor_mat::AbstractMatrix{<:Real}, β::Real)
     sim = repd(nSims, MvEpd(β, cor_mat))
-    return length([i for i in 1:nObs if any(sim[i, :] .> thres)]) / nSims
+    return length([i for i in 1:nSims if any(sim[i, :] .> thres)]) / nSims
 end
 
 @everywhere function exceedance_prob(nSims::Int, thres::AbstractVector{<:Real}, cor_mat::AbstractMatrix{<:Real}, β::AbstractVector{<:Real})
     sim = rGH(nSims, cor_mat, β)
-    return length([i for i in 1:nObs if any(sim[i, :] .> thres)]) / nSims
+    return length([i for i in 1:nSims if any(sim[i, :] .> thres)]) / nSims
 end
 
 
 dimension = 5
-nObs = 50
+nObs = 50 # vi kan test 1000
 
+# tycker att vi kan köra dessa inställningar
 λ = 1.0
 ν = 1.0
 β = 0.5
@@ -63,9 +64,9 @@ coord = rand(dimension, 2)
 dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
 cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
 #d = MvEpd(β, cor_mat);
-d = MvTDist(2, cor_mat)
+d = MvTDist(2, cor_mat) # kanske testa 2 och 5
 
-reps = 4*10
+reps = 4*10 # huser kör 500 reps så vi kan göra det också tycker jag
 mepd = SharedArray{Float64}(reps, 4)
 huser = SharedArray{Float64}(reps, 5)
 
