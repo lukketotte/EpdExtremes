@@ -55,7 +55,7 @@ end
     end
 
     if trans
-      data = mapslices(x -> qG1H.(x, θ[3:4]), data[exc_ind, :]; dims = 1)
+      data = mapslices(x -> qG1H.(x, θ[3:4]), data; dims = 1)
     end
 
     ex_prob = exceedance_prob(10^4, thres, cor_mat, θ[3:4])
