@@ -32,7 +32,11 @@ using Distributed, SharedArrays, JLD2
 
     if censored
       c = 2*quadgk(x -> df(x, β, dimension), 0, Inf; atol = 2e-3)[1]
-      U = mapslices(x -> qF.(x, β, dimension, 1/c; intval = 20), data[exc_ind, :]; dims = 1)
+      try
+        U = mapslices(x -> qF.(x, β, dimension, 1/c; intval = 20), data[exc_ind, :]; dims = 1)
+      catch e
+        U = mapslices(x -> qF.(x, β, dimension, 1/c; intval = 40), data[exc_ind, :]; dims = 1)
+      end
       return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(logpdf(MvEpd(θ[3], cor_mat), permutedims(U))))
     else
       return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(logpdf(MvEpd(θ[3], cor_mat), permutedims(data[exc_ind,:]))))
@@ -52,9 +56,12 @@ end
     end
 
     ex_prob = exceedance_prob(10^4, thres, cor_mat, θ[3:4])
+    exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
+
     if censored
+      U = mapslices(x -> qG1H.(x, θ[3:4]), data[exc_ind, :]; dims = 1)
+      return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(log.(dGH(U, cor_mat, θ[3:4]))))
     else
-      exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
       return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(log.(dGH(data[exc_ind,:], cor_mat, θ[3:4]))))
     end
 end
@@ -76,7 +83,7 @@ nObs = 150
 # tycker att vi kan köra dessa inställningar
 λ = 1.0
 ν = 1.0
-β = 0.5
+β = 0.75
 true_par = [log(λ), ν, β]
 
 thres = 0.95
@@ -118,9 +125,11 @@ mean(mepd, dims = 1)
 mean(huser, dims = 1)
 
 
-
-c = 2*quadgk(x -> df(x, β, dimension), 0, Inf; atol = 2e-3)[1]
+data = repd(nObs, d)
 data = mapslices(sortperm, repd(nObs, d); dims = 1) ./ (nObs+1)
 exc_ind = [i for i in 1:nObs if any(data[i, :] .> thres)]
-U_ep = mapslices(x -> qF.(x, β, dimension, 1/c; intval = 20), data[exc_ind, :]; dims = 1)
+
+β = 0.4
+c = 2*quadgk(x -> df(x, β, dimension), 0, Inf; atol = 2e-3)[1]
+U_ep = mapslices(x -> qF.(x, β, dimension, 1/c; intval = 40), data[exc_ind, :]; dims = 1)
 U_h = qG1H(data[exc_ind, :], [1.,1])
