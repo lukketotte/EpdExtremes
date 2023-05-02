@@ -6,7 +6,17 @@ using Distributed, SharedArrays, JLD2
 @everywhere include("../Huser/FFThuser.jl")
 @everywhere using .MultivariateEpd, .Utils, .HuserCopula
 
-@everywhere function loglik_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, dist::AbstractMatrix{<:Real}, thres::AbstractVector{<:Real})
+@everywhere f(w::Real, t::Real, β::Real, n::Int) = w^((1-n)/2-1) * (1-w)^((n-1)/2 -1) * exp(-0.5*(t/w)^β);
+@everywhere g(t::Real, β::Real, n::Int) = t^((n-1)/2) * quadgk(w -> f(w, t, β, n), 0,1; atol = 2e-3)[1];
+@everywhere K(β::Real, n::Int) = n*gamma(n/2)/(π^(n/2)*gamma(1+n/(2*β))*2^(1+n/(2*β)))
+@everywhere df(x::Real, β::Real, n::Int) = abs(x) > 1e-10 ? g(x^2, β, n) : g(1e-20, β, n)
+@everywhere dF(x::Real, β::Real, n::Int, c::Real) = quadgk(y -> c*df(y, β,n),-Inf,x; atol = 1e-4)[1]
+
+@everywhere qF₁(x::Real, p::Real, β::Real, n::Int, c::Real) = dF(x, β, n, c) - p
+@everywhere qF(p::Real, β::Real, n::Int, c::Real; intval = 20) = find_zero(x -> qF₁(x, p, β, n, c), (-intval,intval), xatol=2e-3)
+
+@everywhere function loglik_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, 
+    dist::AbstractMatrix{<:Real}, thres::AbstractVector{<:Real}, censored::Bool = false)
 
     if !cond_cor(θ) # check conditions on parameters
       return 1e+10
@@ -16,14 +26,21 @@ using Distributed, SharedArrays, JLD2
     if !isposdef(cor_mat)
       return 1e+10
     end
-    
-    exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
+
     ex_prob = exceedance_prob(10^4, thres, cor_mat, θ[3])
-  
-    return -((1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(logpdf(MvEpd(θ[3], cor_mat), permutedims(data[exc_ind,:]))))
+    exc_ind = [i for i in 1:nObs if any(data[i, :] .> thres)]
+
+    if censored
+      c = 2*quadgk(x -> df(x, β, dimension), 0, Inf; atol = 2e-3)[1]
+      U = mapslices(x -> qF.(x, β, dimension, 1/c; intval = 20), data[exc_ind, :]; dims = 1)
+      return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(logpdf(MvEpd(θ[3], cor_mat), permutedims(U))))
+    else
+      return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(logpdf(MvEpd(θ[3], cor_mat), permutedims(data[exc_ind,:]))))
+    end
 end
 
-@everywhere function loglikhuser_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, dist::AbstractMatrix{<:Real}, thres::AbstractVector{<:Real})
+@everywhere function loglikhuser_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, 
+  dist::AbstractMatrix{<:Real}, thres::AbstractVector{<:Real}, censored::Bool = false)
 
     if !cond_cor(θ) # check conditions on parameters
       return 1e+10
@@ -33,10 +50,13 @@ end
     if !isposdef(cor_mat)
       return 1e+10
     end
-    
-    exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
+
     ex_prob = exceedance_prob(10^4, thres, cor_mat, θ[3:4])
-    return -((1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(log.(dGH(data[exc_ind,:], cor_mat, θ[3:4]))))
+    if censored
+    else
+      exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
+      return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(log.(dGH(data[exc_ind,:], cor_mat, θ[3:4]))))
+    end
 end
 
 @everywhere function exceedance_prob(nSims::Int, thres::AbstractVector{<:Real}, cor_mat::AbstractMatrix{<:Real}, β::Real)
@@ -97,20 +117,10 @@ end
 mean(mepd, dims = 1)
 mean(huser, dims = 1)
 
-# later
-"""
-@everywhere f(w::Real, t::Real, β::Real, n::Int) = w^((1-n)/2-1) * (1-w)^((n-1)/2 -1) * exp(-0.5*(t/w)^β);
-@everywhere g(t::Real, β::Real, n::Int) = t^((n-1)/2) * quadgk(w -> f(w, t, β, n), 0,1; atol = 2e-3)[1];
-@everywhere K(β::Real, n::Int) = n*gamma(n/2)/(π^(n/2)*gamma(1+n/(2*β))*2^(1+n/(2*β)))
-@everywhere df(x::Real, β::Real, n::Int) = abs(x) > 1e-10 ? g(x^2, β, n) : g(1e-20, β, n)
-@everywhere dF(x::Real, β::Real, n::Int, c::Real) = quadgk(y -> c*df(y, β,n),-Inf,x; atol = 1e-4)[1]
 
-@everywhere qF₁(x::Real, p::Real, β::Real, n::Int, c::Real) = dF(x, β, n, c) - p
-@everywhere qF(p::Real, β::Real, n::Int, c::Real; intval = 20) = find_zero(x -> qF₁(x, p, β, n, c), (-intval,intval), xatol=2e-3)
 
 c = 2*quadgk(x -> df(x, β, dimension), 0, Inf; atol = 2e-3)[1]
 data = mapslices(sortperm, repd(nObs, d); dims = 1) ./ (nObs+1)
 exc_ind = [i for i in 1:nObs if any(data[i, :] .> thres)]
 U_ep = mapslices(x -> qF.(x, β, dimension, 1/c; intval = 20), data[exc_ind, :]; dims = 1)
 U_h = qG1H(data[exc_ind, :], [1.,1])
-"""
