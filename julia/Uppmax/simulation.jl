@@ -63,15 +63,16 @@ thres = 0.95
 coord = rand(dimension, 2)
 dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
 cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
-#d = MvEpd(β, cor_mat);
-d = MvTDist(2, cor_mat) # kanske testa 2 och 5
+d = MvEpd(β, cor_mat);
+#d = MvTDist(2, cor_mat) # kanske testa 2 och 5
 
 reps = 20
 mepd = SharedArray{Float64}(reps, 4)
 huser = SharedArray{Float64}(reps, 5)
 
 @sync @distributed for i in 1:reps
-    dat = permutedims(rand(d, nObs))
+    #dat = permutedims(rand(d, nObs))
+    dat = repd(nObs, d)
     thresh = quantile.(eachcol(dat), thres)
     println("iter $(i)")
     # MEPD
