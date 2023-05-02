@@ -18,7 +18,7 @@ using Distributed, SharedArrays, JLD2
     end
     
     exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
-    ex_prob = exceedance_prob(10^6, thres, cor_mat, θ[3])
+    ex_prob = exceedance_prob(10^4, thres, cor_mat, θ[3])
   
     return -((1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(logpdf(MvEpd(θ[3], cor_mat), permutedims(data[exc_ind,:]))))
 end
@@ -35,7 +35,7 @@ end
     end
     
     exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
-    ex_prob = exceedance_prob(10^6, thres, cor_mat, θ[3:4])
+    ex_prob = exceedance_prob(10^4, thres, cor_mat, θ[3:4])
     return -((1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(log.(dGH(data[exc_ind,:], cor_mat, θ[3:4]))))
 end
 
@@ -66,7 +66,7 @@ cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, 
 #d = MvEpd(β, cor_mat);
 d = MvTDist(2, cor_mat) # kanske testa 2 och 5
 
-reps = 10
+reps = 20
 mepd = SharedArray{Float64}(reps, 4)
 huser = SharedArray{Float64}(reps, 5)
 
@@ -76,7 +76,7 @@ huser = SharedArray{Float64}(reps, 5)
     println("iter $(i)")
     # MEPD
     opt_res = optimize(x -> loglik_cens(x, dat, dist, thresh), [log(1.0), 1.0, 0.7], NelderMead(), 
-    Optim.Options(f_tol = 1e-6, show_trace = true, show_every = 5))                  
+    Optim.Options(f_tol = 1e-6, g_tol=3e-2, x_tol = 1e-10, show_trace = true, show_every = 50, extended_trace = true))                  
     λ = exp(Optim.minimizer(opt_res)[1])
     ν = Optim.minimizer(opt_res)[2]
     β = Optim.minimizer(opt_res)[3]
@@ -85,7 +85,7 @@ huser = SharedArray{Float64}(reps, 5)
     
     # Huser
     opt_res = optimize(x -> loglikhuser_cens(x, dat, dist, thresh), [log(1.0), 1.0, .08, 2.], NelderMead(), 
-    Optim.Options(f_tol = 1e-6, show_trace = true, show_every = 5))                
+    Optim.Options(f_tol = 1e-6, g_tol=3e-2, x_tol = 1e-10, show_trace = true, show_every = 50, extended_trace = true))                
     λ = exp(Optim.minimizer(opt_res)[1])
     ν = Optim.minimizer(opt_res)[2]
     θ = Optim.minimizer(opt_res)[3:4]
