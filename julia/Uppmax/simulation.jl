@@ -2,9 +2,10 @@ using Distributed, SharedArrays, JLD2
 
 @everywhere using Optim, Compat, LinearAlgebra, Statistics, Random, Dates, Distributions, QuadGK, Roots
 @everywhere include("../utils.jl")
+@everywhere include("../FFT.jl")
 @everywhere include("../Distributions/mepd.jl")
 @everywhere include("../Huser/FFThuser.jl")
-@everywhere using .MultivariateEpd, .Utils, .HuserCopula
+@everywhere using .MultivariateEpd, .Utils, .HuserCopula, .MepdCopula
 
 @everywhere f(w::Real, t::Real, β::Real, n::Int) = w^((1-n)/2-1) * (1-w)^((n-1)/2 -1) * exp(-0.5*(t/w)^β);
 @everywhere g(t::Real, β::Real, n::Int) = t^((n-1)/2) * quadgk(w -> f(w, t, β, n), 0,1; atol = 2e-3)[1];
@@ -16,7 +17,7 @@ using Distributed, SharedArrays, JLD2
 @everywhere qF(p::Real, β::Real, n::Int, c::Real; intval = 20) = find_zero(x -> qF₁(x, p, β, n, c), (-intval,intval), xatol=2e-3)
 
 @everywhere function loglik_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, 
-    dist::AbstractMatrix{<:Real}, thres::AbstractVector{<:Real}, censored::Bool = false)
+    dist::AbstractMatrix{<:Real}, thres::AbstractVector{<:Real}, trans::Bool = false)
 
     if !cond_cor(θ) # check conditions on parameters
       return 1e+10
@@ -25,26 +26,24 @@ using Distributed, SharedArrays, JLD2
     cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), size(data, 2), size(data, 2)), θ)
     if !isposdef(cor_mat)
       return 1e+10
+    end
+
+    if trans
+      try
+        c = 2*quadgk(x -> df(x, β, dimension), 0, Inf; atol = 2e-3)[1]
+        data = mapslices(x -> qF.(x, β, dimension, 1/c; intval = 20), data; dims = 1)
+      catch e
+        data = mapslices(x -> qG1.(x, β), data; dims = 1)
+      end
     end
 
     ex_prob = exceedance_prob(10^4, thres, cor_mat, θ[3])
     exc_ind = [i for i in 1:nObs if any(data[i, :] .> thres)]
-
-    if censored
-      c = 2*quadgk(x -> df(x, β, dimension), 0, Inf; atol = 2e-3)[1]
-      try
-        U = mapslices(x -> qF.(x, β, dimension, 1/c; intval = 20), data[exc_ind, :]; dims = 1)
-      catch e
-        U = mapslices(x -> qF.(x, β, dimension, 1/c; intval = 40), data[exc_ind, :]; dims = 1)
-      end
-      return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(logpdf(MvEpd(θ[3], cor_mat), permutedims(U))))
-    else
-      return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(logpdf(MvEpd(θ[3], cor_mat), permutedims(data[exc_ind,:]))))
-    end
+    return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(logpdf(MvEpd(θ[3], cor_mat), permutedims(data[exc_ind,:]))))
 end
 
 @everywhere function loglikhuser_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, 
-  dist::AbstractMatrix{<:Real}, thres::AbstractVector{<:Real}, censored::Bool = false)
+  dist::AbstractMatrix{<:Real}, thres::AbstractVector{<:Real}, trans::Bool = false)
 
     if !cond_cor(θ) # check conditions on parameters
       return 1e+10
@@ -53,17 +52,16 @@ end
     cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), size(data, 2), size(data, 2)), θ)
     if !isposdef(cor_mat)
       return 1e+10
+    end
+
+    if trans
+      data = mapslices(x -> qG1H.(x, θ[3:4]), data[exc_ind, :]; dims = 1)
     end
 
     ex_prob = exceedance_prob(10^4, thres, cor_mat, θ[3:4])
     exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
 
-    if censored
-      U = mapslices(x -> qG1H.(x, θ[3:4]), data[exc_ind, :]; dims = 1)
-      return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(log.(dGH(U, cor_mat, θ[3:4]))))
-    else
-      return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(log.(dGH(data[exc_ind,:], cor_mat, θ[3:4]))))
-    end
+    return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(log.(dGH(data[exc_ind,:], cor_mat, θ[3:4]))))
 end
 
 @everywhere function exceedance_prob(nSims::Int, thres::AbstractVector{<:Real}, cor_mat::AbstractMatrix{<:Real}, β::Real)
