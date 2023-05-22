@@ -3,7 +3,39 @@ using Distributed, SharedArrays
 @everywhere using Optim, Compat, LinearAlgebra, Statistics, Random, Dates
 @everywhere include("./utils.jl")
 @everywhere include("./FFT.jl")
-@everywhere using .MepdCopula, .Utils
+@everywhere include("./Distributions/mepd.jl")
+@everywhere using .MepdCopula, .Utils, .MultivariateEpd
+
+## estimate β with univariate log-likelihood
+dimension = 5
+nObs = 5
+λ = 1.0
+ν = 1.0
+β = 0.4
+true_par = [log(λ), ν, β]
+coord = rand(dimension, 2)
+dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
+cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
+d = MvEpd(β, cor_mat);
+dat = repd(nObs, d)
+
+dG1_est(param, dat) = -sum(dG1(param, dat)) # univariate log-likelihood from dG1
+β_est = optimize(x -> dG1_est(x, dat), 0.2, 0.9, show_trace = true, extended_trace = true, rel_tol = 1e-3) |> x -> Optim.minimizer(x)[1]  # estimate β with univariate log-likelihood
+
+ncores = 5
+ests = zeros(ncores)
+Threads.@threads for i in 1:ncores
+    coord = rand(dimension, 2)
+    dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
+    cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
+    dat = repd(nObs, MvEpd(β, cor_mat))
+    
+    res = optimize(dG1_est, 0.2, 0.9, rel_tol = 1e-3)
+    ests[i] = Optim.minimizer(res)
+end
+ests
+#
+
 
 dimension = 2
 nObs = nprocs() * 4

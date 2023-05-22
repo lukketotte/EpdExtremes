@@ -9,7 +9,9 @@ function cor_fun(h::AbstractMatrix{<:Real}, param::AbstractVector{<:Real})
 end
 
 function cond_cor(param::AbstractVector{<:Real})
-    if length(param) == 3
+    if length(param) == 2
+        return param[2] > 0 && param[2] < 2
+    elseif length(param) == 3
         return param[2] > 0 && param[2] < 2 && param[3] >= 0.1 && param[3] <= 1.
     else
         return param[2] > 0 && param[2] < 2 && param[3] >= 0 && param[4] > 0

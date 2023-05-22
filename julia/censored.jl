@@ -1,5 +1,4 @@
-using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions,Optim
-using Plots
+using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions, Optim, Random, Plots
 
 include("./Distributions/mepd.jl")
 include("./utils.jl")
@@ -30,9 +29,9 @@ function loglik_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, d
   end
   
   exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
-  ex_prob = exceedance_prob(10^6, thres, cor_mat, θ[3])
+  ex_prob = exceedance_prob(10^5, thres, cor_mat, θ[3])
 
-  return -((1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(logpdf(MvEpd(θ[3], cor_mat), data[exc_ind, :]')))
+  return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(logpdf(MvEpd(θ[3], cor_mat), data[exc_ind, :]')))
 end
 #
 
@@ -42,25 +41,26 @@ function exceedance_prob(nSims::Int, thres::AbstractVector{<:Real}, cor_mat::Abs
 end
 
 # mepd scale
-dimension = 10
-nObs = 5000
+dimension = 5
+nObs = 1000
 
-λ = 1.0
+λ = 0.5
 ν = 1.0
-β = 0.5
+β = 0.9
 true_par = [log(λ), ν, β]
 
-thres = 0.95
+Random.seed!(123)
 coord = rand(dimension, 2)
 dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
 cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
 d = MvEpd(β, cor_mat);
-
 dat = repd(nObs, d)
+
+thres = 0.0
 thresh = quantile.(eachcol(dat), thres)
 
 loglik_cens(true_par, dat, dist, thresh)
-opt_res = optimize(x -> loglik_cens(x, dat, dist, thresh), [log(1.0), 1.0, 0.5], NelderMead(), 
+opt_res = optimize(x -> loglik_cens(x, dat, dist, thresh), [log(1.0), 0.5, 0.5], NelderMead(), 
               Optim.Options(g_tol = 1e-2, 
                             show_trace = true, 
                             show_every = 5, 
@@ -71,32 +71,54 @@ Optim.minimizer(opt_res)[3]
 
 
 
-# uniform scale
-dimension = 5
-nObs = 500
+############## uniform scale
+function loglik_cens(θ::AbstractVector{<:Real}, β::Real, data::AbstractMatrix{<:Real}, dist::AbstractMatrix{<:Real}, thres::AbstractVector{<:Real})
+  if !cond_cor(θ) # check conditions on parameters
+    return 1e+10
+  end
+  
+  cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), size(data, 2), size(data, 2)), θ)
+  if !isposdef(cor_mat)
+    return 1e+10
+  end
+  
+  exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
+  ex_prob = exceedance_prob(10^5, thres, cor_mat, β)
 
-β = 0.8
+  return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(logpdf(MvEpd(β, cor_mat), data[exc_ind,:]')))
+end
+#
+
+function exceedance_prob(nSims::Int, thres::AbstractVector{<:Real}, cor_mat::AbstractMatrix{<:Real}, β::Real)
+  sim = repd(nSims, MvEpd(β, cor_mat))
+  return length([i for i in 1:nSims if any(sim[i, :] .> thres)]) / nSims
+end
+
+dimension = 5
+nObs = 100
+
+β = 0.6
 thres = 0.95
-true_par = [log(0.25), 1., β] # lambda, nu, p
+true_par = [log(1.0), 1.0] # lambda, nu, p
 coord = rand(dimension, 2)
 dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
 cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
-d = MvEpd(true_par[3], cor_mat);
+d = MvEpd(β, cor_mat);
 
 c = 2*quadgk(x -> df(x, β, dimension), 0, Inf; atol = 2e-3)[1]
-data = mapslices(sortperm, repd(nObs, d); dims = 1) ./ (nObs+1)
-exc_ind = [i for i in 1:nObs if any(data[i, :] .> thres)]
-U = mapslices(x -> qF.(x, β, dimension, 1/c; intval = 20), data[exc_ind, :]; dims = 1)
+data_U = mapslices(r -> invperm(sortperm(r, rev=false)), repd(nObs, d); dims = 1) ./ (nObs+1)
+thres_U = quantile.(eachcol(data_U), thres)
+data = mapslices(x -> qF.(x, β, dimension, 1/c; intval = 20), data_U; dims = 1)
+thresh = repeat([qF(thres_U[1], β, dimension, 1/c; intval = 20)], dimension)
 
-loglik_cens([log(1)], β, c, U, dist, thres)
-optimize(x -> loglik_cens(x, β, c, U, dist, thres), [log(1)], NelderMead(), Optim.Options(g_tol = 1e-8, show_trace = true, show_every = 1, extended_trace = true)) |> x -> exp.(Optim.minimizer(x))[1]
+loglik_cens(true_par, β, data, dist, thresh)
+res = optimize(x -> loglik_cens(x, β, data, dist, thresh), [log(2.0), 0.5], NelderMead(), 
+                          Optim.Options(g_tol = 1e-3, 
+                          show_trace = true, 
+                          show_every = 5, 
+                          extended_trace = true))
+[exp(Optim.minimizer(res)[1]), Optim.minimizer(res)[2]]
 
-par_range = range(0.01, stop = 0.5, length = 25)
-res = zeros(length(par_range))
-for i in eachindex(par_range)
-  res[i] = loglik_cens([log(par_range[i])], β, c, data, dist, thres)
-  @show i
-end
-plot(par_range, res, legend=false)
+
 
 

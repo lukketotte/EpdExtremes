@@ -139,7 +139,7 @@ end
 ##
 
 # Marginal density function (PDF)
-dG1 = function(x::Matrix{Float64}, p::Real)
+dG1 = function(p::Real, x::Matrix{Float64})
   (n, D) = size(x)
   val = Matrix{Float64}(undef, n, D)
   for i in 1:n
@@ -155,7 +155,8 @@ end
 
 dG1_fun = function(prob::Real, x::Real, p::Real, d::Integer)
   log_qF = log( qF(prob, p, d) )
-  return exp(logpdf(Normal(), sign(x) * exp(log(abs(x)) - log_qF)) - log_qF)
+  # return exp(logpdf(Normal(), sign(x) * exp(log(abs(x)) - log_qF)) - log_qF)
+  return logpdf(Normal(), sign(x) * exp(log(abs(x)) - log_qF)) - log_qF
 end
 ##
 

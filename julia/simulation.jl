@@ -1,4 +1,4 @@
-using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions, Optim, Plots, Random, StatsPlots, Serialization
+using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions, Optim, Plots, Random, StatsPlots, DelimitedFiles, InvertedIndices
 
 include("./Distributions/mepd.jl")
 include("./utils.jl")
@@ -23,68 +23,97 @@ function exceedance_prob(nSims::Int, thres::AbstractVector{<:Real}, cor_mat::Abs
 end
 
 # censored loglikelihood
-function loglik_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, dist::AbstractMatrix{<:Real}, thres::AbstractVector{<:Real})
+# function loglik_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, dist::AbstractMatrix{<:Real}, thres::AbstractVector{<:Real})
+#   if !cond_cor(θ) # check conditions on parameters
+#     return 1e+10
+#   end
+#   cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), size(data, 2), size(data, 2)), θ)
+#   if !isposdef(cor_mat)
+#     return 1e+10
+#   end
+  
+#   exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
+#   ex_prob = exceedance_prob(10^5, thres, cor_mat, θ[3])
 
+#   return -(log((1 - ex_prob) * size(data[Not(exc_ind), :], 1)) + sum(logpdf(MvEpd(θ[3], cor_mat), data[exc_ind,:]')))
+# end
+
+# censored loglikelihood with fixed β
+function loglik_cens(θ::AbstractVector{<:Real}, β::Real, data::AbstractMatrix{<:Real}, dist::AbstractMatrix{<:Real}, thres::AbstractVector{<:Real})
   if !cond_cor(θ) # check conditions on parameters
     return 1e+10
   end
-
+  
   cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), size(data, 2), size(data, 2)), θ)
   if !isposdef(cor_mat)
     return 1e+10
   end
   
   exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
-  ex_prob = exceedance_prob(10^6, thres, cor_mat, θ[3])
+  ex_prob = exceedance_prob(10^5, thres, cor_mat, β)
 
-  return -((1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(logpdf(MvEpd(θ[3], cor_mat), data[exc_ind,:]')))
+  return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(logpdf(MvEpd(β, cor_mat), data[exc_ind,:]')))
 end
 #
 
-# simulation
-reps = 1000
+## estimate β with univariate log-likelihood
 dimension = 5
-nObs = 1000
+nObs = 5
+λ = 1.0
+ν = 1.0
+β = 0.4
+true_par = [log(λ), ν, β]
+coord = rand(dimension, 2)
+dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
+cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
+d = MvEpd(β, cor_mat);
+dat = repd(nObs, d)
 
+dG1_est(param, dat) = -sum(dG1(param, dat)) # univariate log-likelihood from dG1. I changed dG1 in FFT (line 158) to return log values
+β_est = optimize(x -> dG1_est(x, dat), 0.2, 0.9, show_trace = true, extended_trace = true, rel_tol = 1e-3) |> x -> Optim.minimizer(x)[1]  # estimate β with univariate log-likelihood
+#
+
+
+# "old" simulation without marginal transformation. not adjusted to pre-estimating β
+reps = 10^3
+dimension = 10
+nObs = 10^4
 thres = 0.95
-λ = 0.5 # {0.5, 1}
+λ = 0.5 # {0.5, 1.0}
 ν = 1.0 # {1.0}
 β = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
-# true_par = [log(λ), ν, β]
+
+# mitt (krångliga) sätt att generera unika seeds till varje replikering
+num_sims = reps*length(β)
+Random.seed!(trunc(Int,λ*10)+2^dimension)
+seeds = rand(1:10^20, num_sims)
 
 Threads.nthreads()
-
 for l in eachindex(β)
   true_par = [log(λ), ν, β[l]]
-
-  dist_mat = Vector{Matrix{Float64}}(undef, reps)
-  dat_mat = Vector{Matrix{Float64}}(undef, reps)
-  thres_mat = Vector{Vector{Float64}}(undef, reps)
-  Random.seed!(123)
-  for j in 1:reps
-    coord = rand(dimension, 2)
-    dist_mat[j] = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
-    cor_mat = cor_fun(reshape(sqrt.(dist_mat[j][1, :] .^ 2 .+ dist_mat[j][2, :] .^ 2), dimension, dimension), true_par)
-    d = MvEpd(true_par[3], cor_mat)
-    dat_mat[j] = repd(nObs, d)
-    thres_mat[j] = quantile.(eachcol(dat_mat[j]), thres)
-  end
-
   par_ests = Array{Float64}(undef, reps, 3)
-  Random.seed!(789)
+
   Threads.@threads for i in 1:reps
-    opt_res = optimize(x -> loglik_cens(x, dat_mat[i], dist_mat[i], thres_mat[i]), [log(1.0), 1.0, 0.5], NelderMead(), Optim.Options(g_tol = 1e-2))
+    Random.seed!(seeds[i + (l-1)*1000])
+    
+    coord = rand(dimension, 2)
+    dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]))
+    cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par)
+    dat = repd(nObs, MvEpd(true_par[3], cor_mat))
+    thresh = quantile.(eachcol(dat), thres)
+      
+    opt_res = optimize(x -> loglik_cens(x, dat, dist, thresh), [log(1.0), 1.0, 0.5], NelderMead(), Optim.Options(g_tol = 1e-3))
     par_ests[i, 1] = exp(Optim.minimizer(opt_res)[1])
     par_ests[i, 2] = Optim.minimizer(opt_res)[2]
     par_ests[i, 3] = Optim.minimizer(opt_res)[3]
-
     println("Iteration: ", i, " Estimates: ", round.(par_ests[i, :], digits=4))
   end
-  serialize(join(["dim-", dimension, "_", "lambda-", λ, "_", "nu-", ν, "_", "beta-", β[l], ".dat"], ""), par_ests)
-  @show l
+  # skriver resultatet som en csv med namn som anger dimension och sanna parametervärden
+  writedlm(join(["dim", dimension, "_", "lambda", λ, "_", "nu-", ν, "_", "beta", β[l], ".csv"], ""), par_ests, ',')
 end
 
 boxplot(par_ests[:,1], legend = false); hline!([λ], color=:red, width = 2)
 boxplot(par_ests[:,2], legend = false); hline!([ν], color=:purple, width = 2)
 boxplot(par_ests[:,3], legend = false); hline!([β], color=:green, width = 2)
+
 

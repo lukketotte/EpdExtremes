@@ -7,3 +7,5 @@ PowExpData.R
 *.Rproj
 test.*
 .DS_store
+*.dat
+data_prep.R
