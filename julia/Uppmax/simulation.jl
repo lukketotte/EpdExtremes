@@ -30,10 +30,10 @@ using Distributed, SharedArrays, JLD2
 
     if trans
       try
-        c = 2*quadgk(x -> df(x, β, dimension), 0, Inf; atol = 2e-3)[1]
-        data = mapslices(x -> qF.(x, β, dimension, 1/c; intval = 20), data; dims = 1)
+        c = 2*quadgk(x -> df(x, θ[3], dimension), 0, Inf; atol = 2e-3)[1]
+        data = mapslices(x -> qF.(x, θ[3], dimension, 1/c; intval = 20), data; dims = 1)
       catch e
-        data = mapslices(x -> qG1.(x, β), data; dims = 1)
+        data = qG1(data, θ[3])
       end
     end
 
@@ -55,7 +55,7 @@ end
     end
 
     if trans
-      data = mapslices(x -> qG1H.(x, θ[3:4]), data; dims = 1)
+      data = qG1H(data, θ[3:4])
     end
 
     ex_prob = exceedance_prob(10^4, thres, cor_mat, θ[3:4])
@@ -91,7 +91,7 @@ cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, 
 d = MvEpd(β, cor_mat);
 #d = MvTDist(2, cor_mat) # kanske testa 2 och 5
 
-reps = 20
+reps = 5
 mepd = SharedArray{Float64}(reps, 4)
 huser = SharedArray{Float64}(reps, 5)
 
@@ -99,10 +99,11 @@ huser = SharedArray{Float64}(reps, 5)
     #dat = permutedims(rand(d, nObs))
     dat = repd(nObs, d)
     thresh = quantile.(eachcol(dat), thres)
+    dat = mapslices(sortperm, dat; dims = 1) ./ (nObs+1)
     println("iter $(i)")
     # MEPD
-    opt_res = optimize(x -> loglik_cens(x, dat, dist, thresh), [log(1.0), 1.0, 0.7], NelderMead(), 
-    Optim.Options(f_tol = 1e-6, g_tol=3e-2, x_tol = 1e-10, show_trace = true, show_every = 50, extended_trace = true))                  
+    opt_res = optimize(x -> loglik_cens(x, dat, dist, thresh, true), [log(1.0), 1.0, 0.7], NelderMead(), 
+    Optim.Options(f_tol = 1e-6, g_tol=3e-2, x_tol = 1e-10, show_trace = true, show_every = 5, extended_trace = true))                  
     λ = exp(Optim.minimizer(opt_res)[1])
     ν = Optim.minimizer(opt_res)[2]
     β = Optim.minimizer(opt_res)[3]
@@ -110,8 +111,8 @@ huser = SharedArray{Float64}(reps, 5)
     mepd[i,:] = [λ, ν, β, AIC]
     
     # Huser
-    opt_res = optimize(x -> loglikhuser_cens(x, dat, dist, thresh), [log(1.0), 1.0, .08, 2.], NelderMead(), 
-    Optim.Options(f_tol = 1e-6, g_tol=3e-2, x_tol = 1e-10, show_trace = true, show_every = 50, extended_trace = true))                
+    opt_res = optimize(x -> loglikhuser_cens(x, dat, dist, thresh, true), [log(1.0), 1.0, .08, 2.], NelderMead(), 
+    Optim.Options(f_tol = 1e-6, g_tol=3e-2, x_tol = 1e-10, show_trace = true, show_every = 5, extended_trace = true))                
     λ = exp(Optim.minimizer(opt_res)[1])
     ν = Optim.minimizer(opt_res)[2]
     θ = Optim.minimizer(opt_res)[3:4]
@@ -123,11 +124,9 @@ mean(mepd, dims = 1)
 mean(huser, dims = 1)
 
 
-data = repd(nObs, d)
-data = mapslices(sortperm, repd(nObs, d); dims = 1) ./ (nObs+1)
-exc_ind = [i for i in 1:nObs if any(data[i, :] .> thres)]
+dat = repd(nObs, d)
+thresh = quantile.(eachcol(dat), thres)
+data = mapslices(sortperm, dat; dims = 1) ./ (nObs+1)
 
-β = 0.4
-c = 2*quadgk(x -> df(x, β, dimension), 0, Inf; atol = 2e-3)[1]
-U_ep = mapslices(x -> qF.(x, β, dimension, 1/c; intval = 40), data[exc_ind, :]; dims = 1)
-U_h = qG1H(data[exc_ind, :], [1.,1])
+loglik_cens(true_par, data, dist, thresh, true)
+loglikhuser_cens([log(1.0), 1.0, .08, 2.], data, dist, thresh, true)
