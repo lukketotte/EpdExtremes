@@ -153,6 +153,7 @@ dG1 = function(p::Real, x::Matrix{Float64})
   return val
 end
 
+
 dG1_fun = function(prob::Real, x::Real, p::Real, d::Integer)
   log_qF = log( qF(prob, p, d) )
   # return exp(logpdf(Normal(), sign(x) * exp(log(abs(x)) - log_qF)) - log_qF)
