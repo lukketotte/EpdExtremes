@@ -47,6 +47,42 @@ end
     return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(logpdf(MvEpd(β, cor_mat), permutedims(data[exc_ind,:]))))
 end
 
+## Huser procedure, assumes data is on the uniform scale
+@everywhere function loglikhuser_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, 
+  dist::AbstractMatrix{<:Real})
+
+    if !cond_cor(θ) # check conditions on parameters
+      return 1e+10
+    end
+  
+    cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), size(data, 2), size(data, 2)), θ)
+    if !isposdef(cor_mat)
+      return 1e+10
+    end
+  
+  thres_U = quantile.(eachcol(data), thres)
+  tresh = first(qG1H(thres_U, [1., 1.]))
+  dat = similar(data)
+  for (i, row) in enumerate(eachrow(data))
+    dat[i,:] = any(row .> thresh) ? repeat([tresh], dimension) : qG1H(data_U[i,:], [1., 1.])
+  end
+  
+  ex_prob = exceedance_prob(10^4, repeat([tresh], dimension), cor_mat, θ[3:4])
+  exc_ind = [i for i in 1:size(dat, 1) if any(dat[i, :] .> thres)]
+
+  return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(log.(dGH(dat[exc_ind,:], cor_mat, θ[3:4]))))
+end
+
+@everywhere function exceedance_prob(nSims::Int, thres::AbstractVector{<:Real}, cor_mat::AbstractMatrix{<:Real}, β::AbstractVector{<:Real})
+  sim = rGH(nSims, cor_mat, β)
+  return length([i for i in 1:nSims if any(sim[i, :] .> thres)]) / nSims
+end
+
+
+####################
+####################
+####################
+
 nObs, dimension = 50, 5;
 λ, ν, β = 1.0, 1.0, 0.75;
 true_par = [log(λ), ν, β];
@@ -78,31 +114,56 @@ opt_res = optimize(x -> loglik_cens(x, βhat, data, dist, thresh), [log(1.), 1.]
 
 Optim.minimizer(opt_res)
 
-## Huser procedure
-@everywhere function loglikhuser_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, 
-    dist::AbstractMatrix{<:Real}, thres::AbstractVector{<:Real})
+
+##
+tresh = first(qG1H(thres_U, [1., 1.]))
+data = similar(data_U)
+for (i, row) in enumerate(eachrow(data_U))
+  data[i,:] = any(row .> thresh) ? repeat(tresh, dimension) : qG1H(data_U[i,:], [1., 1.])
+end
+
+data2 = qG1H(data_U, [1., 1.])
   
-      if !cond_cor(θ) # check conditions on parameters
-        return 1e+10
-      end
+ex_prob = exceedance_prob(10^4, tresh, cor_mat, θ[3:4])
+exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
+exc_ind2 = [i for i in 1:size(data2, 1) if any(data2[i, :] .> thres)]
+
+sum(log.(dGH(data2[exc_ind2,:], cor_mat, [1., 1.])))
+sum(log.(dGH(data[exc_ind,:], cor_mat, [1., 1.])))
+
+opt_res = optimize(x -> loglikhuser_cens(x, data_U, dist), [log(1.0), 1.0, .5, 1.], NelderMead(), 
+    Optim.Options(f_tol = 1e-6, g_tol=3e-2, x_tol = 1e-10, show_trace = true, show_every = 5, extended_trace = true)) 
+
+Optim.minimizer(opt_res)
+
+reps = 5
+mepd = SharedArray{Float64}(reps, 4)
+huser = SharedArray{Float64}(reps, 5)
+
+@sync @distributed for i in 1:reps
+    ## Our procedure
+    dat = repd(nObs, d)
+
+    opt_res = optimize(x -> dfmarg(x, dat), [0.5], NelderMead(),
+      Optim.Options(f_tol = 1e-6, g_tol=3e-2, x_tol = 1e-10, 
+      show_trace = true, show_every = 1, extended_trace = true))
     
-      cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), size(data, 2), size(data, 2)), θ)
-      if !isposdef(cor_mat)
-        return 1e+10
-      end
-  
-    data = qG1H(data, θ[3:4])
-    ex_prob = exceedance_prob(10^4, thres, cor_mat, θ[3:4])
-    exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
-  
-    return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(log.(dGH(data[exc_ind,:], cor_mat, θ[3:4]))))
+    βhat = Optim.minimizer(opt_res)[1]
+
+    data_U = mapslices(r -> invperm(sortperm(r, rev=false)), dat; dims = 1) ./ (nObs+1) # data transformed to (pseudo)uniform(0,1)
+    thres_U = quantile.(eachcol(data_U), thres) # thresholds on uniform scale
+    c = 2*quadgk(x -> df(x, βhat, dimension), 0, Inf; atol = 2e-3)[1] # constant
+    data = mapslices(x -> qF.(x, βhat, dimension, 1/c; intval = 20), data_U; dims = 1) # tr
+    thresh = repeat([qF(thres_U[1], βhat, dimension, 1/c; intval = 20)], dimension)
+
+    opt_res = optimize(x -> loglik_cens(x, βhat, data, dist, thresh), [log(1.), 1.], NelderMead(),
+          Optim.Options(f_tol = 1e-6, g_tol=3e-2, x_tol = 1e-10, 
+          show_trace = true, show_every = 1, extended_trace = true))
+
+    θ = Optim.minimizer(opt_res)
+    AIC = 2*(3 + loglik_cens([θ[1], ν[2], βhat], dat, dist, thresh)) # threshold is for transformed data
+    mepd[i,:] = [θ..., βhat, AIC]
+
+    ## Huser
+
 end
-
-@everywhere function exceedance_prob(nSims::Int, thres::AbstractVector{<:Real}, cor_mat::AbstractMatrix{<:Real}, β::AbstractVector{<:Real})
-    sim = rGH(nSims, cor_mat, β)
-    return length([i for i in 1:nSims if any(sim[i, :] .> thres)]) / nSims
-end
-
-
-opt_res = optimize(x -> loglikhuser_cens(x, data_U, dist, thresh), [log(1.0), 1.0, .5, 1.], NelderMead(), 
-    Optim.Options(f_tol = 1e-6, g_tol=3e-2, x_tol = 1e-10, show_trace = true, show_every = 5, extended_trace = true))  
