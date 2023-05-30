@@ -14,7 +14,7 @@ function cond_cor(param::AbstractVector{<:Real})
     elseif length(param) == 3
         return param[2] > 0 && param[2] < 2 && param[3] >= 0.1 && param[3] <= 1.
     else
-        return param[2] > 0 && param[2] < 2 && param[3] >= 0 && param[4] > 0
+        return param[2] > 0 && param[2] < 2 && param[3] >= 0.01 && param[4] > 0.1
     end
 end
 

@@ -79,61 +79,24 @@ end
 ####################
 ####################
 
-nObs, dimension = 50, 5;
+
 λ, ν, β = 1.0, 1.0, 0.75;
 true_par = [log(λ), ν, β];
-
 thres = 0.95;
 coord = rand(dimension, 2);
 dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]));
 cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par);
 d = MvEpd(β, cor_mat);
-dat = repd(nObs, d);
 
-## Our procedure
-opt_res = optimize(x -> dfmarg(x, dat), [0.5], NelderMead(),
-      Optim.Options(f_tol = 1e-6, g_tol=3e-2, x_tol = 1e-10, 
-      show_trace = true, show_every = 1, extended_trace = true))
-    
-βhat = Optim.minimizer(opt_res)[1]
-
-
-data_U = mapslices(r -> invperm(sortperm(r, rev=false)), dat; dims = 1) ./ (nObs+1) # data transformed to (pseudo)uniform(0,1)
-thres_U = quantile.(eachcol(data_U), thres) # thresholds on uniform scale
-c = 2*quadgk(x -> df(x, βhat, dimension), 0, Inf; atol = 2e-3)[1] # constant
-data = mapslices(x -> qF.(x, βhat, dimension, 1/c; intval = 20), data_U; dims = 1) # tr
-thresh = repeat([qF(thres_U[1], βhat, dimension, 1/c; intval = 20)], dimension)
-
-opt_res = optimize(x -> loglik_cens(x, βhat, data, dist, thresh), [log(1.), 1.], NelderMead(),
-      Optim.Options(f_tol = 1e-6, g_tol=3e-2, x_tol = 1e-10, 
-      show_trace = true, show_every = 1, extended_trace = true))
-
-Optim.minimizer(opt_res)
-
-
-##
-nObs = 100
-dat = rGH(nObs, cor_mat, [1., 1.])
-dGH(dat, cor_mat, [1.,1])
-data_U = mapslices(r -> invperm(sortperm(r, rev=false)), dat; dims = 1) ./ (nObs+1)
-
-opt_res = optimize(x -> loglikhuser_cens(x, data_U, dist, 0.95), [log(1.0), 1.0, 1., 1.], NelderMead(), 
-    Optim.Options(iterations = 500, g_tol = 5e-2, 
-    show_trace = true, show_every = 5, extended_trace = true)) 
-
-Optim.minimizer(opt_res)
-
-reps = 5
+reps = 20
 mepd = SharedArray{Float64}(reps, 4)
 huser = SharedArray{Float64}(reps, 5)
-
+nObs = 50
 @sync @distributed for i in 1:reps
-    ## Our procedure
     dat = repd(nObs, d)
-
-    opt_res = optimize(x -> dfmarg(x, dat), [0.5], NelderMead(),
-      Optim.Options(f_tol = 1e-6, g_tol=3e-2, x_tol = 1e-10, 
-      show_trace = true, show_every = 1, extended_trace = true))
+    ## Our procedure
+    opt_res = optimize(x -> dfmarg(x, dat), [0.75], NelderMead(),
+      Optim.Options(g_tol=5e-2, show_trace = true, show_every = 5, extended_trace = true))
     
     βhat = Optim.minimizer(opt_res)[1]
 
@@ -144,13 +107,21 @@ huser = SharedArray{Float64}(reps, 5)
     thresh = repeat([qF(thres_U[1], βhat, dimension, 1/c; intval = 20)], dimension)
 
     opt_res = optimize(x -> loglik_cens(x, βhat, data, dist, thresh), [log(1.), 1.], NelderMead(),
-          Optim.Options(f_tol = 1e-6, g_tol=3e-2, x_tol = 1e-10, 
-          show_trace = true, show_every = 1, extended_trace = true))
+      Optim.Options(g_tol=9e-2, show_trace = true, show_every = 10, extended_trace = true))
 
-    θ = Optim.minimizer(opt_res)
-    AIC = 2*(3 + loglik_cens([θ[1], ν[2], βhat], dat, dist, thresh)) # threshold is for transformed data
-    mepd[i,:] = [θ..., βhat, AIC]
+    aic_mepd = 2*(3 + (loglik_cens(Optim.minimizer(opt_res), βhat, data, dist, thresh) -dfmarg([βhat], data)))
+
+    mepd[i,:] = [Optim.minimizer(opt_res)..., βhat, aic_mepd]
 
     ## Huser
+    opt_res = optimize(x -> loglikhuser_cens(x, data_U, dist, 0.95), [log(1.0), 1.0, 1., 1.], NelderMead(), 
+      Optim.Options(iterations = 500, g_tol = 5e-2, 
+      show_trace = true, show_every = 1, extended_trace = true)) 
 
+    aic_huser = 2*(4 + loglikhuser_cens(Optim.minimizer(opt_res), data_U, dist, 0.95))
+
+    huser[i,:] = [Optim.minimizer(opt_res)..., aic_huser]
 end
+
+mean(mepd, dims = 1)
+mean(huser, dims = 1)

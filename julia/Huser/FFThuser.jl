@@ -102,7 +102,11 @@ qG1const = function(prob::Matrix{Float64}, par::AbstractVector{<:Real})
               val[i, j] = find_zero(x -> qG1_fun(x, prob_i, par), (-20, 20))
             catch e
               #println(par)
-              val[i, j] = find_zero(x -> qG1_fun(x, prob_i, par), (-200, 200))
+              try
+                val[i, j] = find_zero(x -> qG1_fun(x, prob_i, par), (-200, 200))
+              catch e
+                val[i, j] = find_zero(x -> qG1_fun(x, prob_i, par), (-500, 500))
+              end
             end
           end
         end
