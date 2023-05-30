@@ -49,7 +49,7 @@ end
 
 ## Huser procedure, assumes data is on the uniform scale
 @everywhere function loglikhuser_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, 
-  dist::AbstractMatrix{<:Real})
+  dist::AbstractMatrix{<:Real}, thres::Real)
 
     if !cond_cor(θ) # check conditions on parameters
       return 1e+10
@@ -61,16 +61,12 @@ end
     end
   
   thres_U = quantile.(eachcol(data), thres)
-  tresh = first(qG1H(thres_U, [1., 1.]))
-  dat = similar(data)
-  for (i, row) in enumerate(eachrow(data))
-    dat[i,:] = any(row .> thresh) ? repeat([tresh], dimension) : qG1H(data_U[i,:], [1., 1.])
-  end
-  
-  ex_prob = exceedance_prob(10^4, repeat([tresh], dimension), cor_mat, θ[3:4])
-  exc_ind = [i for i in 1:size(dat, 1) if any(dat[i, :] .> thres)]
+  tresh = first(qG1H(thres_U, θ[3:4]))
+  data = qG1H(data, θ[3:4])
+  ex_prob = exceedance_prob(10^4, repeat([tresh], size(cor_mat, 1)), cor_mat, θ[3:4])
+  exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
 
-  return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(log.(dGH(dat[exc_ind,:], cor_mat, θ[3:4]))))
+  return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(log.(dGH(data[exc_ind,:], cor_mat, θ[3:4])))) + sum(log.(dG1H(data, θ[3:4])))
 end
 
 @everywhere function exceedance_prob(nSims::Int, thres::AbstractVector{<:Real}, cor_mat::AbstractMatrix{<:Real}, β::AbstractVector{<:Real})
@@ -116,23 +112,10 @@ Optim.minimizer(opt_res)
 
 
 ##
-tresh = first(qG1H(thres_U, [1., 1.]))
-data = similar(data_U)
-for (i, row) in enumerate(eachrow(data_U))
-  data[i,:] = any(row .> thresh) ? repeat(tresh, dimension) : qG1H(data_U[i,:], [1., 1.])
-end
-
-data2 = qG1H(data_U, [1., 1.])
-  
-ex_prob = exceedance_prob(10^4, tresh, cor_mat, θ[3:4])
-exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
-exc_ind2 = [i for i in 1:size(data2, 1) if any(data2[i, :] .> thres)]
-
-sum(log.(dGH(data2[exc_ind2,:], cor_mat, [1., 1.])))
-sum(log.(dGH(data[exc_ind,:], cor_mat, [1., 1.])))
-
-opt_res = optimize(x -> loglikhuser_cens(x, data_U, dist), [log(1.0), 1.0, .5, 1.], NelderMead(), 
-    Optim.Options(f_tol = 1e-6, g_tol=3e-2, x_tol = 1e-10, show_trace = true, show_every = 5, extended_trace = true)) 
+dat = rGH(nObs, cor_mat, [1., 1.])
+data_U = mapslices(r -> invperm(sortperm(r, rev=false)), dat; dims = 1) ./ (nObs+1)
+opt_res = optimize(x -> loglikhuser_cens(x, data_U, dist, 0.95), [log(1.0), 1.0, 1., 1.], NelderMead(), 
+    Optim.Options(f_tol = 1e-6, g_tol=3e-2, x_tol = 1e-10, show_trace = true, show_every = 1, extended_trace = true)) 
 
 Optim.minimizer(opt_res)
 

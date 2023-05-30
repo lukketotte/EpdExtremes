@@ -1,6 +1,6 @@
 module HuserCopula
 
-export rCH, dCH, rGH, rG1, dGH, qG1H
+export rCH, dCH, rGH, rG1, dGH, qG1H, dG1H
 
 using SpecialFunctions, LinearAlgebra, QuadGK, Roots, Distributions, StatsFuns, MvNormalCDF, Random, InvertedIndices
 
@@ -71,7 +71,7 @@ pG1const = function (x::Matrix{Float64}, par::AbstractVector{<:Real})
     for j in 1:D
       xi = x[i, j]
       if !ismissing(xi)
-        val[i, j] = quadgk(x -> pG1_fun(x, xi, par), 0, 1)[1]
+        val[i, j] = quadgk(x -> pG1_fun(x, xi, par), 0, 1; atol = 2e-3)[1]
       end
     end
   end
@@ -127,15 +127,15 @@ dG1const = function(x::Matrix{Float64}, par::AbstractVector{<:Real})
     for j in 1:D
       xi = x[i, j]
       if !ismissing(xi)
-        val[i, j] = quadgk(x -> dG1_fun(x, xi, par), 1e-6, 1; atol = 1e-4)[1]
+        val[i, j] = quadgk(x -> dG1_fun(x, xi, par), 1e-6, 1; atol = 2e-3)[1]
       end
     end
   end
   return val
 end
 
-dG1H(prob::Matrix{Float64}, par::AbstractVector{<:Real}) = dG1const(prob,par)
-dG1H(prob::Vector{Float64}, par::AbstractVector{<:Real}) = dG1const(reshape(prob, (1,length(prob))),par)
+dG1H(x::Matrix{Float64}, par::AbstractVector{<:Real}) = dG1const(x,par)
+dG1H(x::Vector{Float64}, par::AbstractVector{<:Real}) = dG1const(reshape(x, (1,length(x))),par)
 
 dG1_fun = function(prob::Real, x::Real, par::AbstractVector{<:Real})
   log_qF = qFH(prob, par; logg = true)
