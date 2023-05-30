@@ -115,27 +115,11 @@ Optim.minimizer(opt_res)
 nObs = 100
 dat = rGH(nObs, cor_mat, [1., 1.])
 dGH(dat, cor_mat, [1.,1])
-
 data_U = mapslices(r -> invperm(sortperm(r, rev=false)), dat; dims = 1) ./ (nObs+1)
 
-mapslices(r -> invperm(sortperm(r, rev=false)), dat; dims = 1) |> maximum
-
-data = qG1H(data_U, [1., 1.])
-qG1H([.9999],[1.,1.])
-qG1([1.], 0.5)
-data_U[4,:]
-dGH(data[4,:], cor_mat, [1., 1])
-
-data[4,:]
-
-
-loglikhuser_cens([log(1.), 1., 1., 1.], data_U, dist,0.95)
-
 opt_res = optimize(x -> loglikhuser_cens(x, data_U, dist, 0.95), [log(1.0), 1.0, 1., 1.], NelderMead(), 
-    Optim.Options(iterations = 500, g_tol = 3e-2, 
+    Optim.Options(iterations = 500, g_tol = 5e-2, 
     show_trace = true, show_every = 5, extended_trace = true)) 
-
-opt_res |> print
 
 Optim.minimizer(opt_res)
 
