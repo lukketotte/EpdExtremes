@@ -132,7 +132,10 @@ data[4,:]
 loglikhuser_cens([log(1.), 1., 1., 1.], data_U, dist,0.95)
 
 opt_res = optimize(x -> loglikhuser_cens(x, data_U, dist, 0.95), [log(1.0), 1.0, 1., 1.], NelderMead(), 
-    Optim.Options(f_tol = 1e-6, g_tol=3e-2, x_tol = 1e-10, show_trace = true, show_every = 1, extended_trace = true)) 
+    Optim.Options(iterations = 500, g_tol = 3e-2, 
+    show_trace = true, show_every = 5, extended_trace = true)) 
+
+opt_res |> print
 
 Optim.minimizer(opt_res)
 
