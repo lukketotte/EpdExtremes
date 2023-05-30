@@ -44,7 +44,7 @@ end
 
     ex_prob = exceedance_prob(10^4, thres, cor_mat, β)
     exc_ind = [i for i in 1:nObs if any(data[i, :] .> thres)]
-    return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(logpdf(MvEpd(β, cor_mat), permutedims(data[exc_ind,:]))))
+    return -(log(1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(logpdf(MvEpd(β, cor_mat), permutedims(data[exc_ind,:]))))
 end
 
 ## Huser procedure, assumes data is on the uniform scale
@@ -66,7 +66,7 @@ end
   ex_prob = exceedance_prob(10^4, repeat([tresh], size(cor_mat, 1)), cor_mat, θ[3:4])
   exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
 
-  return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(log.(dGH(data[exc_ind,:], cor_mat, θ[3:4])))) + sum(log.(dG1H(data, θ[3:4])))
+  return -(log(1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(log.(dGH(data[exc_ind,:], cor_mat, θ[3:4])))) + sum(log.(dG1H(data, θ[3:4])))
 end
 
 @everywhere function exceedance_prob(nSims::Int, thres::AbstractVector{<:Real}, cor_mat::AbstractMatrix{<:Real}, β::AbstractVector{<:Real})
@@ -112,8 +112,25 @@ Optim.minimizer(opt_res)
 
 
 ##
+nObs = 100
 dat = rGH(nObs, cor_mat, [1., 1.])
+dGH(dat, cor_mat, [1.,1])
+
 data_U = mapslices(r -> invperm(sortperm(r, rev=false)), dat; dims = 1) ./ (nObs+1)
+
+mapslices(r -> invperm(sortperm(r, rev=false)), dat; dims = 1) |> maximum
+
+data = qG1H(data_U, [1., 1.])
+qG1H([.9999],[1.,1.])
+qG1([1.], 0.5)
+data_U[4,:]
+dGH(data[4,:], cor_mat, [1., 1])
+
+data[4,:]
+
+
+loglikhuser_cens([log(1.), 1., 1., 1.], data_U, dist,0.95)
+
 opt_res = optimize(x -> loglikhuser_cens(x, data_U, dist, 0.95), [log(1.0), 1.0, 1., 1.], NelderMead(), 
     Optim.Options(f_tol = 1e-6, g_tol=3e-2, x_tol = 1e-10, show_trace = true, show_every = 1, extended_trace = true)) 
 

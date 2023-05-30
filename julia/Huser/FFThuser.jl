@@ -216,7 +216,13 @@ dGi = function(xi::Vector{Float64}, Sigma::Matrix{Float64}, par::AbstractVector{
       ind_nna[i] = missing # check how missing values will be recorded in the data of interest
     end
   end
-  return quadgk(x -> dGi_fun(x, xi, par, Sigma, ind_nna, num_nna), 1e-8, 1; atol = 2e-3)[1]
+  res = 0
+  try
+    res = quadgk(x -> dGi_fun(x, xi, par, Sigma, ind_nna, num_nna), 1e-8, 1; atol = 2e-3)[1]
+  catch e
+    res = quadgk(x -> dGi_fun(x, xi, par, Sigma, ind_nna, num_nna), 1e-4, 1; atol = 2e-3)[1]
+  end
+  res
 end
 
 dGi_fun = function(prob::Real, xi::Vector{Float64}, par::AbstractVector{<:Real}, Sigma::Matrix{Float64}, ind_nna::Vector{Int64}, num_nna::Integer)
