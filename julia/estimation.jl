@@ -89,18 +89,11 @@ dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]));
 cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par);
 d = MvEpd(β, cor_mat);
 
-dat = repd(nObs, d)
-  ## EPD
-opt_res = optimize(x -> dfmarg(x, dat), [0.75], NelderMead(),
-  Optim.Options(g_tol=5e-2, show_trace = false, show_every = 5, extended_trace = true))
 
-βhat = Optim.minimizer(opt_res)[1]
-
-
-reps = 20
+reps = 15
 mepd = SharedArray{Float64}(reps, 4)
 huser = SharedArray{Float64}(reps, 5)
-nObs = 200
+nObs = 500
 @sync @distributed for i in 1:reps
   println(i)
   dat = repd(nObs, d)
@@ -116,17 +109,21 @@ nObs = 200
   data = mapslices(x -> qF.(x, βhat, dimension, 1/c; intval = 20), data_U; dims = 1) # tr
   thresh = repeat([qF(thres_U[1], βhat, dimension, 1/c; intval = 20)], dimension)
 
-  opt_res = optimize(x -> loglik_cens(x, βhat, data, dist, thresh), [log(1.), 1.], NelderMead(),
-    Optim.Options(g_tol=9e-2, show_trace = false, show_every = 20, extended_trace = true))
+  opt_res = optimize(x -> loglik_cens(x, βhat, data, dist, thresh), [log(1.), 1.], GradientDescent(),
+    Optim.Options(g_tol=9e-2, show_trace = true, show_every = 20, extended_trace = true))
   aic_mepd = 2*(3 + (loglik_cens(Optim.minimizer(opt_res), βhat, data, dist, thresh) -dfmarg([βhat], data)))
   mepd[i,:] = [Optim.minimizer(opt_res)..., βhat, aic_mepd]
   
   ## Huser
-  """opt_res = optimize(x -> loglikhuser_cens(x, data_U, dist, 0.95), [log(1.0), 1.0, 1., 1.], NelderMead(), 
-    Optim.Options(iterations = 500, g_tol = 9e-2, 
-    show_trace = false, show_every = 20, extended_trace = true)) 
-  aic_huser = 2*(4 + loglikhuser_cens(Optim.minimizer(opt_res), data_U, dist, 0.95))
-  huser[i,:] = [Optim.minimizer(opt_res)..., aic_huser]"""
+  try
+    opt_res = optimize(x -> loglikhuser_cens(x, data_U, dist, 0.95), [log(1.0), 1.0, 1., 1.], GradientDescent(), 
+      Optim.Options(iterations = 500, g_tol = 9e-2, 
+      show_trace = true, show_every = 20, extended_trace = true)) 
+    aic_huser = 2*(4 + loglikhuser_cens(Optim.minimizer(opt_res), data_U, dist, 0.95))
+    huser[i,:] = [Optim.minimizer(opt_res)..., aic_huser]
+  catch e
+    println(e)
+  end
 end
 
 mean(mepd, dims = 1)
