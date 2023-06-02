@@ -43,7 +43,7 @@ end
     end
 
     ex_prob = exceedance_prob(10^4, thres, cor_mat, β)
-    exc_ind = [i for i in 1:nObs if any(data[i, :] .> thres)]
+    exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
     return -(log(1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(logpdf(MvEpd(β, cor_mat), permutedims(data[exc_ind,:]))))
 end
 
@@ -64,7 +64,7 @@ end
   tresh = first(qG1H(thres_U, θ[3:4]))
   data = qG1H(data, θ[3:4])
   ex_prob = exceedance_prob(10^4, repeat([tresh], size(cor_mat, 1)), cor_mat, θ[3:4])
-  exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
+  exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> tresh)]
 
   return -(log(1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(log.(dGH(data[exc_ind,:], cor_mat, θ[3:4])))) + sum(log.(dG1H(data, θ[3:4])))
 end
@@ -96,10 +96,11 @@ huser = SharedArray{Float64}(reps, 5)
 nObs = 500
 @sync @distributed for i in 1:reps
   println(i)
-  dat = repd(nObs, d)
+  #dat = repd(nObs, d)
+  dat = rGH(nObs, cor_mat, [1., 1.])
   ## EPD
   opt_res = optimize(x -> dfmarg(x, dat), [0.75], NelderMead(),
-    Optim.Options(g_tol=5e-2, show_trace = false, show_every = 5, extended_trace = true))
+    Optim.Options(g_tol=5e-2, show_trace = true, show_every = 5, extended_trace = true))
   
   βhat = Optim.minimizer(opt_res)[1]
 
@@ -109,16 +110,16 @@ nObs = 500
   data = mapslices(x -> qF.(x, βhat, dimension, 1/c; intval = 20), data_U; dims = 1) # tr
   thresh = repeat([qF(thres_U[1], βhat, dimension, 1/c; intval = 20)], dimension)
 
-  opt_res = optimize(x -> loglik_cens(x, βhat, data, dist, thresh), [log(1.), 1.], GradientDescent(),
-    Optim.Options(g_tol=9e-2, show_trace = true, show_every = 20, extended_trace = true))
+  opt_res = optimize(x -> loglik_cens(x, βhat, data, dist, thresh), [log(1.), 1.], NelderMead(),
+    Optim.Options(g_tol=9e-2, iterations = 500, show_trace = true, show_every = 20, extended_trace = true))
   aic_mepd = 2*(3 + (loglik_cens(Optim.minimizer(opt_res), βhat, data, dist, thresh) -dfmarg([βhat], data)))
   mepd[i,:] = [Optim.minimizer(opt_res)..., βhat, aic_mepd]
   
   ## Huser
   try
-    opt_res = optimize(x -> loglikhuser_cens(x, data_U, dist, 0.95), [log(1.0), 1.0, 1., 1.], GradientDescent(), 
+    opt_res = optimize(x -> loglikhuser_cens(x, data_U, dist, 0.95), [log(1.0), 1.0, 1., 1.], NelderMead(), 
       Optim.Options(iterations = 500, g_tol = 9e-2, 
-      show_trace = true, show_every = 20, extended_trace = true)) 
+      show_trace = true, show_every = 1, extended_trace = true)) 
     aic_huser = 2*(4 + loglikhuser_cens(Optim.minimizer(opt_res), data_U, dist, 0.95))
     huser[i,:] = [Optim.minimizer(opt_res)..., aic_huser]
   catch e
