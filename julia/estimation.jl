@@ -90,7 +90,7 @@ cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, 
 d = MvEpd(β, cor_mat);
 
 
-reps = 10
+reps = 200
 mepd = SharedArray{Float64}(reps, 4)
 huser = SharedArray{Float64}(reps, 5)
 nObs = 500
