@@ -1,4 +1,4 @@
-using Distributed, SharedArrays
+using Distributed, SharedArrays, CSV
 
 @everywhere using Optim, LinearAlgebra, Distributions, QuadGK, Roots
 @everywhere include("./utils.jl")
@@ -90,7 +90,7 @@ cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, 
 d = MvEpd(β, cor_mat);
 
 
-reps = 5
+reps = 10
 mepd = SharedArray{Float64}(reps, 4)
 huser = SharedArray{Float64}(reps, 5)
 nObs = 500
@@ -119,7 +119,7 @@ nObs = 500
   try
     opt_res = optimize(x -> loglikhuser_cens(x, data_U, dist, 0.95), [log(1.0), 1.0, 1., 1.], NelderMead(), 
       Optim.Options(iterations = 200, g_tol = 9e-2, 
-      show_trace = true, show_every = 1, extended_trace = true)) 
+      show_trace = true, show_every = 20, extended_trace = true)) 
     aic_huser = 2*(4 + loglikhuser_cens(Optim.minimizer(opt_res), data_U, dist, 0.95))
     huser[i,:] = [Optim.minimizer(opt_res)..., aic_huser]
   catch e
@@ -127,8 +127,8 @@ nObs = 500
   end
 end
 
-mean(mepd, dims = 1)
-mean(huser, dims = 1)
+#mean(mepd, dims = 1)
+#mean(huser, dims = 1)
 
-mepd
-huser
+CSV.write("mepd.csv", Tables.table(mepd))
+CSV.write("huser.csv", Tables.table(huser))
