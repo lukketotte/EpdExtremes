@@ -1,20 +1,35 @@
-library(tidyverse)
+rm(list = ls())
+dev.off()
+gc()
+# .rs.restartR()
+
 library(ggmap)
+library(raster)
+library(padr)
+library(anytime)
+library(tidyverse)
 
 ## import sthlm-upps data
 setwd('C:/Users/aleen962/Dropbox/PhD/Forskning/Power exponential dist extremes/EpdExtremes/application/data')
-load(file = 'wind_gust_data.RData')
+
+wind_gust_coordinates <- read_csv(file = 'wind_gust_coordinates.csv')
+wind_gust_coordinates_km <- read_csv(file = 'wind_gust_coordinates_km.csv')
+wind_gust_coordinates_unit <- read_csv(file = 'wind_gust_coordinates_unit.csv')
+
+load(file = 'wind_gust_data_full.RData')
 load(file = 'wind_dir_data.RData')
+
 load(file = 'wind_gust_list.RData')
 load(file = 'wind_dir_list.RData')
 
 
+############################ ############################
+### exploratory analysis ### ### exploratory analysis ###
+############################ ############################
+
 ## plot sites on map
 #
-sites <- tibble(lon = unique(wind_gust_data$lon),
-               lat = unique(wind_gust_data$lat)
-               )
-qmplot(x = lon, y = lat, data = sites,
+qmplot(x = lon, y = lat, data = wind_gust_coordinates,
        maptype = "toner-lite",
        extent = "normal",
        xlab = 'Longitude',
@@ -37,13 +52,14 @@ qmplot(x = lon, y = lat, data = sites,
 #             "toner-hybrid", "toner-labels", "toner-lines", "toner-lite")
 #
 
-### investigate seasonal patterns
+
+### investigate seasonal patterns with box-plots
 # jan-april seem to have the strongest winds
-ggplot(wind_gust_data) +
+ggplot(wind_gust_data_full) +
   geom_boxplot(mapping = aes(x = month, y = gust)) +
-  geom_hline(yintercept = c(mean(wind_gust_data$gust), 
-                            quantile(wind_gust_data$gust, 0.95),
-                            quantile(wind_gust_data$gust, 0.99)), 
+  geom_hline(yintercept = c(mean(wind_gust_data_full$gust, na.rm = TRUE), 
+                            quantile(wind_gust_data_full$gust, 0.95, na.rm = TRUE),
+                            quantile(wind_gust_data_full$gust, 0.99, na.rm = TRUE)), 
              color = c('red', 'purple', 'green'), linewidth = 1) +
   labs(x = 'Month',
        y = 'Hourly wind gusts (m/s)') +
@@ -54,6 +70,252 @@ ggplot(wind_gust_data) +
         plot.title = element_text(hjust = 0.5, size = 16))
 #
 
+### print number of obs per site
+stations <- wind_gust_data_full %>% distinct(station)
+for(i in 1:nrow(stations)){
+  wind_gust_data_full %>% 
+  filter(station == stations$station[i]) %>% 
+  nrow() %>% 
+  print()
+}
+#
+
+### pad missing values
+wind_gust_data_full <- wind_gust_data_full %>%
+  mutate(date_full = with(wind_gust_data_full, anytime::anytime(paste(date, time)))) %>%
+  group_by(station) %>%
+  padr::pad(interval = 'hour', by = 'date_full') %>% #, start_val = as.POSIXlt('2019-01-01'), end_val = as.POSIXlt('2022-12-31')) %>%
+  ungroup()
+#
+
+### extract months with strongest wind gusts
+season <- c('Jan', 'Feb', 'Mar', 'Apr')
+
+wind_gust_season <- wind_gust_data_full %>% 
+  filter(month %in% season)
+
+wind_gust_season
+#
+nrow(wind_gust_season) / nrow(distinct(wind_gust_season, station))
+#
+for(i in 1:nrow(stations)){
+  wind_gust_season %>% 
+  filter(station == stations$station[i]) %>% 
+  nrow() %>% 
+  print()
+}
+#
+
+
+ggplot(wind_gust_season) + 
+  geom_point(aes(date, gust)) +
+  theme_bw()
+#
+wind_gust_season %>% distinct(month)
+#
+summary(wind_gust_season)
+#
+ggplot(wind_gust_season) +
+  geom_boxplot(mapping = aes(x = month, y = gust)) +
+  geom_hline(yintercept = c(mean(wind_gust_season$gust), 
+                            quantile(wind_gust_season$gust, 0.95),
+                            quantile(wind_gust_season$gust, 0.99)), 
+             color = c('red', 'purple', 'green'), linewidth = 1) +
+  labs(x = 'Month',
+       y = 'Hourly wind gusts (m/s)') +
+  ggtitle('Horizontal lines: mean, 95th and 99th quantiles') +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(hjust = 0.5, size = 16))
+#
+
+
+stats <- stations$station
+nas <- numeric()
+full_dat <- NULL
+for(j in 1:length(stats)){
+  test2 <- NULL
+  for(i in 1:4){
+    test_dat <- wind_gust_season %>% 
+      filter(year == 2018+i & station == stations$station[j])
+    test <- test_dat %>% 
+      mutate(date_full = with(test_dat, anytime(paste(date, time)))) %>% 
+      padr::pad(interval = 'hour', by = 'date_full')
+    test2 <- rbind(test2, test)
+    }
+  nas[j] <- test2 %>% 
+    mutate(na_ratio = mean(is.na(gust))) %>% 
+    distinct(na_ratio)
+  full_dat <- rbind(full_dat, test2)
+}
+na_ratios <- unlist(nas)
+summary(na_ratios)
+
+full_dat %>% 
+  mutate(na_ratio = mean(is.na(gust))) %>% 
+  distinct(na_ratio)
+
+
+test <- test_dat %>% 
+  mutate(date_full = with(test_dat, anytime(paste(date, time)))) %>% 
+  padr::pad(interval = 'hour', by = 'date_full') %>% 
+  mutate(na_ratio = mean(is.na(gust))) %>% 
+  print()
+
+
+
+tidyr::complete(test_dat, time = seq(min(time), max(time), by = "1 hour"))
+
+
+test <- wind_gust_season %>% 
+  mutate(date_full = with(wind_gust_season, anytime(paste(date, time)))) %>% 
+  group_by(station) %>% 
+  padr::pad(interval = 'hour', by = 'date_full') %>% 
+  ungroup()
+
+#
+for(i in 1:nrow(stations)){
+  test %>% 
+  filter(station == stations$station[i]) %>% 
+  nrow() %>% 
+  print()
+}
+
+test %>% 
+  group_by(station) %>% 
+  mutate(na_ratio = mean(is.na(gust))) %>% 
+  ungroup() %>% 
+  distinct(na_ratio)
+
+test2 <- NULL
+for(i in 1:4){
+  test2 <- bind_rows(test2, test %>% 
+                            dplyr::filter(year == 2018+i) %>% 
+                            dplyr::select(gust, station) #%>% 
+                            # tidyr::pivot_wider(names_from = station, values_from = gust)
+  )
+}
+test2
+
+
+
+
+stations <- wind_gust_season %>% distinct(station)
+stations$station[1]
+
+for(i in 1:nrow(stations)){
+  wind_gust_season %>% 
+  filter(station == stations$station[i]) %>% 
+  nrow() %>% 
+  print()
+}
+
+wind_gust_season %>% 
+  filter(station == stations$station[2]) %>% 
+  summary()
+
+
+# save data as csv
+setwd('C:/Users/aleen962/Dropbox/PhD/Forskning/Power exponential dist extremes/EpdExtremes/application/data')
+
+swe_wind_data <- NULL
+for(i in 1:4){
+  swe_wind_data <- bind_rows(swe_wind_data, wind_gust_season %>% 
+                            dplyr::filter(year == 2018+i) %>% 
+                            dplyr::select(gust, station) %>% 
+                            tidyr::pivot_wider(names_from = station, values_from = gust)
+  )
+}
+
+test <- wind_gust_season %>% 
+  dplyr::filter(year == 2018+1) %>% 
+  dplyr::select(gust, station)
+
+test %>% pivot_wider(names_from = 'station', values_from = 'gust')
+
+
+print(swe_wind_data, n=50)
+#
+cal_temp_coordinates <- wind_gust_season %>% 
+  distinct(lon, lat)
+#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### calculate extremal coefficients
+
+# transform data to matrices
+model_data <- as.matrix(wind_gust_data_full)
+coords <- as.matrix(wind_gust_coordinates_km)
+
+# estimate marginals
+i <- i + 1
+est <- extRemes::fevd(model_data[,i], type = "GEV", method = "MLE", time.units = "years", period.basis = "year")
+plot(est)
+summary(est)
+
+# transform data to unit fréchet
+frech_fun <- function(data){
+  res <- extRemes::fevd(data, type = "GEV", method = "MLE", time.units = "years", period.basis = "year")
+  pars <- res$results$par
+  
+  return(SpatialExtremes::gev2frech(data, loc = pars[1], scale = pars[2], shape = pars[3]))
+}
+dat <- apply(X = model_data, MARGIN = 2, FUN = frech_fun)
+
+# fit Brown-Resnick model to data
+mod <- SpatialExtremes::fitmaxstab(data = dat,
+                                   coord = as.matrix(wind_gust_coordinates_km),
+                                   cov.mod = "brown")
+mod$param
+
+# calculate extremal coefficients
+extremal_coefficients <- SpatialExtremes::fitextcoeff(data = dat, coord = coords, 
+                                                      estim = "ST", marge = "frech", 
+                                                      plot = TRUE, loess = TRUE, 
+                                                      method = "BFGS", std.err = TRUE,
+                                                      prob = 0
+                                                      )
+extremal_coefficients
+
+extremal_coeff <- tibble(distance = extremal_coefficients$ext.coeff[,1],
+                         ext_coeff = extremal_coefficients$ext.coeff[,2])
+
+summary(extremal_coefficients$ext.coeff[,1])
+
+
+# plot extremal coefficients against distance
+ext_coeff_fig <- ggplot(data = extremal_coeff, aes(x = distance, y = ext_coeff)) + 
+  geom_point(shape = 1) + 
+  geom_smooth(se = FALSE, color = 'black') +
+  labs(x = 'Distance (km)',
+       # y = expression( paste(hat(theta), '(h)', sep = ''))) +
+       y = expression( theta)) +
+  ggtitle('Estimated extremal coefficients') +
+  theme_bw(base_size = 15) +
+  theme(plot.title = element_blank(),#  element_text(hjust = 0.5),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()
+        # axis.title.y = element_text(angle = 0, vjust = 0.5)
+        )
+ext_coeff_fig
 
 
 

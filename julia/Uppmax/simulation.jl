@@ -28,18 +28,21 @@ using Distributed, SharedArrays, JLD2
       return 1e+10
     end
 
+    ex_prob = exceedance_prob(10^4, thres, cor_mat, θ[3])
+    thres = 
+    exc_ind = [i for i in 1:nObs if any(data[i, :] .> thres)]
     if trans
       try
         c = 2*quadgk(x -> df(x, θ[3], dimension), 0, Inf; atol = 2e-3)[1]
-        data = mapslices(x -> qF.(x, θ[3], dimension, 1/c; intval = 20), data; dims = 1)
+        # data = mapslices(x -> qF.(x, θ[3], dimension, 1/c; intval = 20), data; dims = 1)
+        data[exc_ind,:] = mapslices(x -> qF.(x, θ[3], dimension, 1/c; intval = 20), data[exc_ind,:]; dims = 1)
       catch e
-        data = qG1(data, θ[3])
+        data[exc_ind,:] = qG1(data[exc_ind,:], θ[3])
       end
     end
 
-    ex_prob = exceedance_prob(10^4, thres, cor_mat, θ[3])
-    exc_ind = [i for i in 1:nObs if any(data[i, :] .> thres)]
-    return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(logpdf(MvEpd(θ[3], cor_mat), permutedims(data[exc_ind,:]))))
+    # exc_ind = [i for i in 1:nObs if any(data[i, :] .> thres)]
+    return -(log(1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(logpdf(MvEpd(θ[3], cor_mat), permutedims(data[exc_ind,:]))))
 end
 
 @everywhere function loglikhuser_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, 
@@ -61,7 +64,7 @@ end
     ex_prob = exceedance_prob(10^4, thres, cor_mat, θ[3:4])
     exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
 
-    return -(log((1 - ex_prob) * (size(data, 1) - length(exc_ind))) + sum(log.(dGH(data[exc_ind,:], cor_mat, θ[3:4]))))
+    return -(log(1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(log.(dGH(data[exc_ind,:], cor_mat, θ[3:4]))))
 end
 
 @everywhere function exceedance_prob(nSims::Int, thres::AbstractVector{<:Real}, cor_mat::AbstractMatrix{<:Real}, β::Real)
@@ -76,7 +79,7 @@ end
 
 
 dimension = 5
-nObs = 150
+nObs = 100
 
 # tycker att vi kan köra dessa inställningar
 λ = 1.0
@@ -99,7 +102,8 @@ huser = SharedArray{Float64}(reps, 5)
     #dat = permutedims(rand(d, nObs))
     dat = repd(nObs, d)
     thresh = quantile.(eachcol(dat), thres)
-    dat = mapslices(sortperm, dat; dims = 1) ./ (nObs+1)
+    # dat = mapslices(sortperm, dat; dims = 1) ./ (nObs+1)
+    dat = mapslices(r -> invperm(sortperm(r, rev=false)), dat; dims = 1) ./ (nObs+1)
     println("iter $(i)")
     # MEPD
     opt_res = optimize(x -> loglik_cens(x, dat, dist, thresh, true), [log(1.0), 1.0, 0.7], NelderMead(), 
