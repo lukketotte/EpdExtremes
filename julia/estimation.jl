@@ -1,4 +1,4 @@
-using Distributed, SharedArrays, CSV, Random
+using Distributed, SharedArrays, CSV, Random, Tables, Dates
 
 @everywhere using Optim, LinearAlgebra, Distributions, QuadGK, Roots
 @everywhere include("./utils.jl")
@@ -84,13 +84,13 @@ end
 λ, ν, β = 1.0, 1.0, 0.75;
 true_par = [log(λ), ν, β];
 thres = 0.95;
-dimension = 5
+dimension = 15
 coord = rand(dimension, 2);
 dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]));
 cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par);
 d = MvEpd(β, cor_mat);
 
-reps = 500
+reps = 200
 mepd = SharedArray{Float64}(reps, 4)
 huser = SharedArray{Float64}(reps, 5)
 nObs = 200
@@ -98,8 +98,8 @@ nObs = 200
 Random.seed!(123) # ADDED SEED
 @sync @distributed for i in 1:reps
   println(i)
-  data = repd(nObs, d) # generate from mepd
-  # data = rGH(nObs, cor_mat, [1., 1.]) # generate from Huser et al model
+  #data = repd(nObs, d) # generate from mepd
+  data = rGH(nObs, cor_mat, [1., 1.]) # generate from Huser et al model
   ## EPD
   opt_res = optimize(x -> dfmarg(x, data), [0.75], NelderMead(),
     Optim.Options(g_tol=1e-5, show_trace = true, show_every = 5, extended_trace = true))
@@ -133,8 +133,5 @@ Random.seed!(123) # ADDED SEED
   end
 end
 
-#mean(mepd, dims = 1)
-#mean(huser, dims = 1)
-
-CSV.write("mepd.csv", Tables.table(mepd))
-CSV.write("huser.csv", Tables.table(huser))
+CSV.write("mepd_$(dimension)_$(month(Dates.today()))_$(day(Dates.today())).csv", Tables.table(mepd))
+CSV.write("huser_$(dimension)_$(month(Dates.today()))_$(day(Dates.today())).csv", Tables.table(huser))
