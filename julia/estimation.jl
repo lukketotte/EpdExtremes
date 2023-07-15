@@ -1,4 +1,7 @@
-using Distributed, SharedArrays, CSV, Random
+using Distributed
+addprocs(6)
+
+using SharedArrays, CSV, Random
 
 @everywhere using Optim, LinearAlgebra, Distributions, QuadGK, Roots
 @everywhere include("./utils.jl")
@@ -25,12 +28,14 @@ using Distributed, SharedArrays, CSV, Random
     end
 end
 
+@everywhere function marg_fun(β) return dfmarg([β], data) end # enabling univariate optimisation of β
+
 @everywhere function exceedance_prob(nSims::Int, thres::AbstractVector{<:Real}, cor_mat::AbstractMatrix{<:Real}, β::Real)
     sim = repd(nSims, MvEpd(β, cor_mat))
     return length([i for i in 1:nSims if any(sim[i, :] .> thres)]) / nSims
 end
 
-@everywhere function loglik_cens(θ::AbstractVector{<:Real}, β::Real, data::AbstractMatrix{<:Real}, data_exc::AbstractMatrix{<:Real},  # ADDED data_exc AS INPUT I.E. THE TRANSFORMED EXCEEDANCES
+@everywhere function loglik_cens(θ::AbstractVector{<:Real}, β::Real, data::AbstractMatrix{<:Real}, data_exc::AbstractMatrix{<:Real}, 
     dist::AbstractMatrix{<:Real}, thres::AbstractVector{<:Real})
 
     if !cond_cor(θ) # check conditions on parameters
@@ -42,7 +47,8 @@ end
       return 1e+10
     end
 
-    ex_prob = exceedance_prob(10^4, thres, cor_mat, β)
+    ex_prob = exceedance_prob(trunc(Int, 1e6), thres, cor_mat, β) # CHANGED: number of simulations to 1e6 because correlation parameter estimation didn't work with 1e4
+
     # exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
     # return -(log(1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(logpdf(MvEpd(β, cor_mat), permutedims(data[exc_ind,:]))))
     return -(log(1 - ex_prob) * (size(data, 1) - size(data_exc, 1)) + sum(logpdf(MvEpd(β, cor_mat), permutedims(data_exc))))
@@ -62,10 +68,10 @@ end
     end
   
   thres_U = quantile.(eachcol(data), thres)
-  tresh = first(qG1H(thres_U, θ[3:4]))
+  thresh = first(qG1H(thres_U, θ[3:4]))
   data = qG1H(data, θ[3:4])
-  ex_prob = exceedance_prob(10^4, repeat([tresh], size(cor_mat, 1)), cor_mat, θ[3:4])
-  exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> tresh)]
+  ex_prob = exceedance_prob(trunc(Int, 1e6), repeat([thresh], size(cor_mat, 1)), cor_mat, θ[3:4])
+  exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thresh)]
 
   return -(log(1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(log.(dGH(data[exc_ind,:], cor_mat, θ[3:4])))) + sum(log.(dG1H(data[exc_ind,:], θ[3:4])))
 end
@@ -76,34 +82,43 @@ end
 end
 
 
+
 ####################
 ####################
 ####################
 
 
-λ, ν, β = 1.0, 1.0, 0.75;
+λ, ν, β = 0.5, 1.0, 0.4;
+
 true_par = [log(λ), ν, β];
 thres = 0.95;
 dimension = 5
-coord = rand(dimension, 2);
-dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]));
-cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par);
-d = MvEpd(β, cor_mat);
 
-reps = 500
+u2mepd_interval = 70 # intval = ((λ=1: 50; λ=0.5: 70), 20, 17) for β = (0.4, 0.65, 0.9)
+
+reps = 200
 mepd = SharedArray{Float64}(reps, 4)
 huser = SharedArray{Float64}(reps, 5)
 nObs = 200
 
-Random.seed!(123) # ADDED SEED
+Random.seed!(123)
+using Dates; Dates.now()
 @sync @distributed for i in 1:reps
   println(i)
+
+  # CHANGED: each replicate should have both new coordinates and new data
+  coord = rand(dimension, 2);
+  dist = vcat(dist_fun(coord[:, 1]), dist_fun(coord[:, 2]));
+  cor_mat = cor_fun(reshape(sqrt.(dist[1, :] .^ 2 .+ dist[2, :] .^ 2), dimension, dimension), true_par);
+  d = MvEpd(β, cor_mat);
+  
   data = repd(nObs, d) # generate from mepd
   # data = rGH(nObs, cor_mat, [1., 1.]) # generate from Huser et al model
-  ## EPD
-  opt_res = optimize(x -> dfmarg(x, data), [0.75], NelderMead(),
-    Optim.Options(g_tol=1e-5, show_trace = true, show_every = 5, extended_trace = true))
   
+  ## EPD
+  # opt_res = optimize(x -> dfmarg(x, data), [0.75], NelderMead(),
+  #   Optim.Options(g_tol=1e-5, show_trace = true, show_every = 5, extended_trace = true))
+  opt_res = optimize(x -> dfmarg([x], data), 0.3, 0.95, show_trace = false, show_every = 1) # CHANGED: univariate optimisation of β bcs there was some issue with the multivariate optimisation for β=0.4
   βhat = Optim.minimizer(opt_res)[1]
 
   data_U = mapslices(r -> invperm(sortperm(r, rev=false)), data; dims = 1) ./ (nObs+1) # data transformed to (pseudo)uniform(0,1)
@@ -111,30 +126,39 @@ Random.seed!(123) # ADDED SEED
   
   exc_ind = [i for i in 1:size(data_U, 1) if any(data_U[i, :] .> thres_U)]
   c = 2*quadgk(x -> df(x, βhat, dimension), 0, Inf; atol = 2e-3)[1] # constant
-  data_exc = mapslices(x -> qF.(x, βhat, dimension, 1/c; intval = 20), data_U[exc_ind,:]; dims = 1) # tr. ONLY TRANSFORMING THE EXCEEDANCES. intval = ( , 20, 18) for β = (0.4, 0.65, 0.9)
-  thresh = repeat([qF(thres_U[1], βhat, dimension, 1/c; intval = 20)], dimension)
+
+  data_exc = mapslices(x -> qF.(x, βhat, dimension, 1/c; intval = u2mepd_interval), data_U[exc_ind,:]; dims = 1) # tr. 
+  thresh = repeat([qF(thres_U[1], βhat, dimension, 1/c; intval = u2mepd_interval)], dimension)
   # exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thresh)]
-  
-  opt_res = optimize(x -> loglik_cens(x, βhat, data, data_exc, dist, thresh), [log(1.), 1.], NelderMead(), # ADDED data_exc AS INPUT I.E. THE TRANSFORMED EXCEEDANCES
-    Optim.Options(g_tol=9e-2, iterations = 200, show_trace = true, show_every = 20, extended_trace = true))
-  
-  aic_mepd = 2*(3 + (loglik_cens(Optim.minimizer(opt_res), βhat, data, data_exc, dist, thresh) -dfmarg([βhat], data[exc_ind, :]))) # ADDED data_exc AS INPUT I.E. THE TRANSFORMED EXCEEDANCES
+
+  opt_res = optimize(x -> loglik_cens(x, βhat, data, data_exc, dist, thresh), [log(1.), 1.], NelderMead(), 
+    Optim.Options(g_tol = 1e-2, iterations = 100, show_trace = false, show_every = 10, extended_trace = true)) # CHANGED: g_tol to 1e-2 and iterations to 100 bcs of increased exceedance_prob simulations
+  aic_mepd = 2*(3 + (loglik_cens(Optim.minimizer(opt_res), βhat, data, data_exc, dist, thresh) -dfmarg([βhat], data[exc_ind, :])))
   mepd[i,:] = [Optim.minimizer(opt_res)..., βhat, aic_mepd]
   
   ## Huser
-  try
+  # try
     opt_res = optimize(x -> loglikhuser_cens(x, data_U, dist, 0.95), [log(1.0), 1.0, 1., 1.], NelderMead(), 
       Optim.Options(iterations = 200, g_tol = 9e-2, 
-      show_trace = true, show_every = 20, extended_trace = true)) 
+      show_trace = false, show_every = 20, extended_trace = true)) 
     aic_huser = 2*(4 + loglikhuser_cens(Optim.minimizer(opt_res), data_U, dist, 0.95))
     huser[i,:] = [Optim.minimizer(opt_res)..., aic_huser]
-  catch e
-    println(e)
-  end
+  # catch e
+  #   println(e)
+  # end
 end
+using Dates; Dates.now()
 
-#mean(mepd, dims = 1)
-#mean(huser, dims = 1)
+mean(mepd[:,1] .== 0.0)
 
-CSV.write("mepd.csv", Tables.table(mepd))
-CSV.write("huser.csv", Tables.table(huser))
+mepd
+huser
+
+mean(mepd, dims = 1)
+mean(huser, dims = 1)
+
+using Tables
+CSV.write("mepd_d5_n200_beta04_la05_nu1_mepd.csv", Tables.table(mepd))
+CSV.write("huser_d5_n200_beta04_la05_nu1_mepd.csv", Tables.table(huser))
+
+

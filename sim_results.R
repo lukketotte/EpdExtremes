@@ -1,22 +1,139 @@
+
+#################################################################
+##### load packages ##### load packages ##### load packages ##### 
+#################################################################
 library(tidyverse)
 library(gridExtra)
 library(grid)
 
-## load result files
-setwd('C:/Users/aleen962/Dropbox/PhD/Forskning/Power exponential dist extremes/EpdExtremes/results')
-# file_names <- list.files(pattern="list")
-# for(i in 1:length(file_names)) assign(gsub("-|.csv", "", file_names[[i]]), read_csv(file = file_names[[i]], col_names = c('lambda', 'nu', 'beta')))
-# rm(file_names)
+# .rs.restartR()
+# rm(list = ls())
 
-lapply(list.files(pattern="list"), load, .GlobalEnv)
+#############################################################################
+##### load result files ##### load result files ##### load result files ##### 
+#############################################################################
+
+### mepd results ###
+setwd('C:/Users/aleen962/Dropbox/PhD/Forskning/Power exponential dist extremes/EpdExtremes/results')
+mepd_file_names <- list.files(pattern="mepd_")
+mepd_results <- list()
+for(i in 1:length(mepd_file_names)) mepd_results[[i]] <- assign(gsub("-|.csv", "", mepd_file_names[[i]]), 
+                                      read_csv(file = mepd_file_names[[i]], 
+                                               skip = 1,
+                                               col_names = c('lambda','nu','beta','aic'),
+                                               col_types = cols(
+                                                 lambda = col_double(),
+                                                 nu = col_double(),
+                                                 beta = col_double(),
+                                                 aic = col_double()
+                                                 )
+                                               )
+                                      )
+mepd_d5_n200_beta065_la05_nu1_mepd
+# rm(i)
+#
+
+### huser et al results ###
+
+huser_file_names <- list.files(pattern="huser_")
+huser_results <- list()
+for(i in 1:length(huser_file_names)) huser_results[[i]] <- assign(gsub("-|.csv", "", huser_file_names[[i]]), 
+                                      read_csv(file = huser_file_names[[i]], 
+                                               skip = 1,
+                                               col_names = c('lambda','nu','alpha','gamma','aic'),
+                                               col_types = cols(
+                                                 lambda = col_double(),
+                                                 nu = col_double(),
+                                                 alpha = col_double(),
+                                                 gamma = col_double(),
+                                                 aic = col_double()
+                                                 )
+                                               )
+                                      )
+huser_d5_n200_beta065_la05_nu1_mepd
+# rm(i)
+#
+
+#####################################################
+##### box plots ##### box plots ##### box plots ##### 
+#####################################################
+
+mepd_file_names
+
+# THE ORDERING OF THE PARAMETERS ARE WRONG 2023-07-12
+
+dat <- mepd_results[[1]][,c('lambda','nu','beta')] %>%
+  dplyr::filter(beta != 0) %>% 
+  dplyr::mutate(lambda = exp(lambda)) %>% 
+  # print() %>% 
+  pivot_longer(cols = 1:3, names_to = 'parameter', values_to = 'estimate') %>% 
+  dplyr::mutate(parameter_fct = factor(parameter, levels = c('lambda','nu','beta')))
+dat
+
+line_dat <- data.frame(parameter_fct = factor(c('lambda','nu','beta')), true_val = c(0.5, 1, 0.4))
+# line_dat <- data.frame(parameter = factor(c('lambda','nu','beta')), true_val = c(1, 1, 0.4))
+# 
+# line_dat <- data.frame(parameter = factor(c('lambda','nu','beta')), true_val = c(0.5, 1, 0.65))
+# line_dat <- data.frame(parameter = factor(c('lambda','nu','beta')), true_val = c(1, 1, 0.65))
+
+line_dat <- tibble(parameter_fct = factor(c('lambda','nu','beta')), true_val = c(0.5, 1, 0.9))
+# line_dat <- data.frame(parameter = factor(c('lambda','nu','beta')), true_val = c(1, 1, 0.9))
+  
+dat %>% 
+  ggplot() +
+  geom_boxplot(aes(y = estimate), outlier.shape = "circle open") +
+    geom_hline(data = line_dat, 
+               aes(yintercept = true_val), 
+               linetype = 2,
+               linewidth = 1) +
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        strip.background = element_blank()) +
+  facet_wrap(~parameter_fct)
+#
+
+
+
+
+
+
+
+
+
+######################################################################################
+##### evaluation functions ##### evaluation functions ##### evaluation functions ##### 
+######################################################################################
 
 bias_fun <- function(estimates, true_val){
-  return(colMeans(estimates - true_val))
+  return(colMeans(estimates) - true_val)
 }
-
+#
 rmse_fun <- function(estimates, true_val){
   return(sqrt(colMeans((true_val - estimates)^2)))
 }
+#
+
+
+########################################################################################################
+##### compute evaluation metrics ##### compute evaluation metrics ##### compute evaluation metrics ##### 
+########################################################################################################
+
+lambda <- 1
+nu <- 1
+beta <- 0.65
+alpha <- 1
+gamma <- 1
+
+true_values <- c(lambda, nu, beta, alpha, gamma)
+
+
+mepd_bias_matrix <- matrix(NA, 2, 3)
+
+
+
 
 true_beta <- seq(0.2, 0.9, by = 0.1)
 true_lambda <- 0.5
