@@ -1,6 +1,6 @@
 module Utils
 
-export cor_fun, cond_cor, dist_fun, same_vec, compute_I_nexc_nb_i, censoring
+export cor_fun, cond_cor, dist_fun, same_vec, compute_I_nexc_nb_i, censoring, block_boot_sample
 
 using LinearAlgebra 
 
@@ -8,13 +8,34 @@ function cor_fun(h::AbstractMatrix{<:Real}, param::AbstractVector{<:Real})
     return exp.(-(h ./ exp(param[1])).^param[2])
 end
 
+# function cor_fun_anisotropic(h::AbstractMatrix{<:Real}, param::AbstractVector{<:Real})
+    
+# end
+
+# block bootstrap sample
+function block_boot_sample(data::AbstractMatrix{<:Real}, block_length::Real)
+    n = size(data, 1)
+    boot_sample = 1
+    while size(boot_sample, 1) < (size(data, 1) + 1)
+        b = rand(1:(n-block_length), 1)[1]
+        block_inds = b:(b+block_length-1)
+        boot_sample = vcat(boot_sample, data[block_inds, :])
+    end
+    return boot_sample[2:(size(data, 1) + 1), :]
+end
+
 function cond_cor(param::AbstractVector{<:Real})
+    # if length(param) == 2
+    #     return param[2] > 0 && param[2] < 2
+    # elseif length(param) == 3
+    #     return param[2] > 0 && param[2] < 2 && param[3] >= 0.1 && param[3] <= 1.
+    # else
+    #     return param[2] > 0 && param[2] < 2 && param[3] >= 0.01 && param[4] > 0.2
+    # end
     if length(param) == 2
         return param[2] > 0 && param[2] < 2
-    elseif length(param) == 3
-        return param[2] > 0 && param[2] < 2 && param[3] >= 0.1 && param[3] <= 1.
-    else
-        return param[2] > 0 && param[2] < 2 && param[3] >= 0.01 && param[4] > 0.2
+    elseif length(param) == 4
+        return param[2] > 0 && param[2] < 2 && param[3] >= -pi/2 && param[3] <= pi/2 && param[4] > 0
     end
 end
 

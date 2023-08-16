@@ -31,8 +31,23 @@ end
 @everywhere function marg_fun(β) return dfmarg([β], data) end # enabling univariate optimisation of β
 
 @everywhere function exceedance_prob(nSims::Int, thres::AbstractVector{<:Real}, cor_mat::AbstractMatrix{<:Real}, β::Real)
-    sim = repd(nSims, MvEpd(β, cor_mat))
-    return length([i for i in 1:nSims if any(sim[i, :] .> thres)]) / nSims
+  ## slower but allocates less memory
+  exceedance = 0
+  # for i in 1:nSims
+  #   sim = repd(1, MvEpd(β, cor_mat))
+  #   if any(sim .> thres)
+  #     exceedance = exceedance + 1
+  #   end
+  # end
+  for j in 1:trunc(Int, nSims/1000)
+    sim = repd(1000, MvEpd(β, cor_mat))
+    exceedance += length([i for i in 1:size(sim, 1) if any(sim[i, :] .> thres)])
+  end
+  return exceedance / nSims
+
+  ## faster but allocates a lot of memory
+  # sim = repd(nSims, MvEpd(β, cor_mat))
+  # return length([i for i in 1:nSims if any(sim[i, :] .> thres)]) / nSims
 end
 
 @everywhere function loglik_cens(θ::AbstractVector{<:Real}, β::Real, data::AbstractMatrix{<:Real}, data_exc::AbstractMatrix{<:Real}, 
@@ -47,7 +62,7 @@ end
       return 1e+10
     end
 
-    ex_prob = exceedance_prob(trunc(Int, 1e6), thres, cor_mat, β) # CHANGED: number of simulations to 1e6 because correlation parameter estimation didn't work with 1e4
+    ex_prob = exceedance_prob(10^6, thres, cor_mat, β) # CHANGED: number of simulations to 1e6 because correlation parameter estimation didn't work with 1e4
 
     # exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thres)]
     # return -(log(1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(logpdf(MvEpd(β, cor_mat), permutedims(data[exc_ind,:]))))
@@ -70,23 +85,35 @@ end
   thres_U = quantile.(eachcol(data), thres)
   thresh = first(qG1H(thres_U, θ[3:4]))
   data = qG1H(data, θ[3:4])
-  ex_prob = exceedance_prob(trunc(Int, 1e6), repeat([thresh], size(cor_mat, 1)), cor_mat, θ[3:4])
+  ex_prob = exceedance_prob(10^6, repeat([thresh], size(cor_mat, 1)), cor_mat, θ[3:4])
   exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thresh)]
 
   return -(log(1 - ex_prob) * (size(data, 1) - length(exc_ind)) + sum(log.(dGH(data[exc_ind,:], cor_mat, θ[3:4])))) + sum(log.(dG1H(data[exc_ind,:], θ[3:4])))
 end
 
 @everywhere function exceedance_prob(nSims::Int, thres::AbstractVector{<:Real}, cor_mat::AbstractMatrix{<:Real}, β::AbstractVector{<:Real})
-  sim = rGH(nSims, cor_mat, β)
-  return length([i for i in 1:nSims if any(sim[i, :] .> thres)]) / nSims
+  ## slower but allocates less memory
+  exceedance = 0
+  # for i in 1:nSims
+  #   sim = rGH(1, cor_mat, β)
+  #   if any(sim .> thres)
+  #     exceedance = exceedance + 1
+  #   end
+  # end
+  for j in 1:trunc(Int, nSims/1000)
+    sim = rGH(1000, cor_mat, β)
+    exceedance += length([i for i in 1:size(sim, 1) if any(sim[i, :] .> thres)])
+  end
+  return exceedance / nSims
+  
+  ## faster but allocates a lot of memory
+  # sim = rGH(nSims, cor_mat, β)
+  # return length([i for i in 1:nSims if any(sim[i, :] .> thres)]) / nSims
 end
 
-
-
 ####################
 ####################
 ####################
-
 
 λ, ν, β = 0.5, 1.0, 0.4;
 
@@ -139,7 +166,7 @@ using Dates; Dates.now()
   ## Huser
   # try
     opt_res = optimize(x -> loglikhuser_cens(x, data_U, dist, 0.95), [log(1.0), 1.0, 1., 1.], NelderMead(), 
-      Optim.Options(iterations = 200, g_tol = 9e-2, 
+      Optim.Options(iterations = 100, g_tol = 1e-2, 
       show_trace = false, show_every = 20, extended_trace = true)) 
     aic_huser = 2*(4 + loglikhuser_cens(Optim.minimizer(opt_res), data_U, dist, 0.95))
     huser[i,:] = [Optim.minimizer(opt_res)..., aic_huser]
@@ -150,9 +177,6 @@ end
 using Dates; Dates.now()
 
 mean(mepd[:,1] .== 0.0)
-
-mepd
-huser
 
 mean(mepd, dims = 1)
 mean(huser, dims = 1)

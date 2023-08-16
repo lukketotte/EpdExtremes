@@ -106,7 +106,6 @@ for(i in 1:nrow(stations)){
 }
 #
 
-
 ggplot(wind_gust_season) + 
   geom_point(aes(date, gust)) +
   theme_bw()
@@ -156,17 +155,13 @@ full_dat %>%
   mutate(na_ratio = mean(is.na(gust))) %>% 
   distinct(na_ratio)
 
-
 test <- test_dat %>% 
   mutate(date_full = with(test_dat, anytime(paste(date, time)))) %>% 
   padr::pad(interval = 'hour', by = 'date_full') %>% 
   mutate(na_ratio = mean(is.na(gust))) %>% 
   print()
 
-
-
 tidyr::complete(test_dat, time = seq(min(time), max(time), by = "1 hour"))
-
 
 test <- wind_gust_season %>% 
   mutate(date_full = with(wind_gust_season, anytime(paste(date, time)))) %>% 
@@ -191,14 +186,12 @@ test %>%
 test2 <- NULL
 for(i in 1:4){
   test2 <- bind_rows(test2, test %>% 
-                            dplyr::filter(year == 2018+i) %>% 
-                            dplyr::select(gust, station) #%>% 
-                            # tidyr::pivot_wider(names_from = station, values_from = gust)
+                       dplyr::filter(year == 2018+i) %>% 
+                       dplyr::select(gust, station) #%>% 
+                     # tidyr::pivot_wider(names_from = station, values_from = gust)
   )
 }
 test2
-
-
 
 
 stations <- wind_gust_season %>% distinct(station)
@@ -266,7 +259,7 @@ model_data <- as.matrix(wind_gust_data_full)
 coords <- as.matrix(wind_gust_coordinates_km)
 
 # estimate marginals
-i <- i + 1
+i <- 1 + i
 est <- extRemes::fevd(model_data[,i], type = "GEV", method = "MLE", time.units = "years", period.basis = "year")
 plot(est)
 summary(est)
