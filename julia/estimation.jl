@@ -1,9 +1,8 @@
 using Distributed
-addprocs(6)
+addprocs(2)
+using SharedArrays, CSV, Random, DelimitedFiles, Tables, Dates
 
-using SharedArrays, CSV, Random
-
-@everywhere using Optim, LinearAlgebra, Distributions, QuadGK, Roots
+@everywhere using Optim, LinearAlgebra, Distributions, QuadGK, Roots, Printf
 @everywhere include("./utils.jl")
 @everywhere include("./FFT.jl")
 @everywhere include("./Distributions/mepd.jl")
@@ -31,14 +30,7 @@ end
 @everywhere function marg_fun(β) return dfmarg([β], data) end # enabling univariate optimisation of β
 
 @everywhere function exceedance_prob(nSims::Int, thres::AbstractVector{<:Real}, cor_mat::AbstractMatrix{<:Real}, β::Real)
-  ## slower but allocates less memory
   exceedance = 0
-  # for i in 1:nSims
-  #   sim = repd(1, MvEpd(β, cor_mat))
-  #   if any(sim .> thres)
-  #     exceedance = exceedance + 1
-  #   end
-  # end
   for j in 1:trunc(Int, nSims/1000)
     sim = repd(1000, MvEpd(β, cor_mat))
     exceedance += length([i for i in 1:size(sim, 1) if any(sim[i, :] .> thres)])
@@ -73,7 +65,7 @@ end
 @everywhere function loglikhuser_cens(θ::AbstractVector{<:Real}, data::AbstractMatrix{<:Real}, 
   dist::AbstractMatrix{<:Real}, thres::Real)
 
-    if !cond_cor(θ) # check conditions on parameters
+    if !cond_cor_huser(θ) # check conditions on parameters
       return 1e+10
     end
   
@@ -92,14 +84,7 @@ end
 end
 
 @everywhere function exceedance_prob(nSims::Int, thres::AbstractVector{<:Real}, cor_mat::AbstractMatrix{<:Real}, β::AbstractVector{<:Real})
-  ## slower but allocates less memory
   exceedance = 0
-  # for i in 1:nSims
-  #   sim = rGH(1, cor_mat, β)
-  #   if any(sim .> thres)
-  #     exceedance = exceedance + 1
-  #   end
-  # end
   for j in 1:trunc(Int, nSims/1000)
     sim = rGH(1000, cor_mat, β)
     exceedance += length([i for i in 1:size(sim, 1) if any(sim[i, :] .> thres)])
@@ -115,21 +100,21 @@ end
 ####################
 ####################
 
-λ, ν, β = 0.5, 1.0, 0.4;
+λ, ν, β = 1.0, 1.0, 0.4;
 
 true_par = [log(λ), ν, β];
 thres = 0.95;
-dimension = 5
+dimension = 3;
 
-u2mepd_interval = 70 # intval = ((λ=1: 50; λ=0.5: 70), 20, 17) for β = (0.4, 0.65, 0.9)
+u2mepd_interval = 70; # intval = ((λ=1: 50; λ=0.5: 70), 20, 17) for β = (0.4, 0.65, 0.9)
+trace = true;
 
-reps = 200
+reps = 2
 mepd = SharedArray{Float64}(reps, 4)
 huser = SharedArray{Float64}(reps, 5)
-nObs = 200
+nObs = 100
 
 Random.seed!(123)
-using Dates; Dates.now()
 @sync @distributed for i in 1:reps
   println(i)
 
@@ -145,7 +130,7 @@ using Dates; Dates.now()
   ## EPD
   # opt_res = optimize(x -> dfmarg(x, data), [0.75], NelderMead(),
   #   Optim.Options(g_tol=1e-5, show_trace = true, show_every = 5, extended_trace = true))
-  opt_res = optimize(x -> dfmarg([x], data), 0.3, 0.95, show_trace = false, show_every = 1) # CHANGED: univariate optimisation of β bcs there was some issue with the multivariate optimisation for β=0.4
+  opt_res = optimize(x -> dfmarg([x], data), 0.3, 0.95, show_trace = trace, show_every = 5) # CHANGED: univariate optimisation of β bcs there was some issue with the multivariate optimisation for β=0.4
   βhat = Optim.minimizer(opt_res)[1]
 
   data_U = mapslices(r -> invperm(sortperm(r, rev=false)), data; dims = 1) ./ (nObs+1) # data transformed to (pseudo)uniform(0,1)
@@ -159,30 +144,32 @@ using Dates; Dates.now()
   # exc_ind = [i for i in 1:size(data, 1) if any(data[i, :] .> thresh)]
 
   opt_res = optimize(x -> loglik_cens(x, βhat, data, data_exc, dist, thresh), [log(1.), 1.], NelderMead(), 
-    Optim.Options(g_tol = 1e-2, iterations = 100, show_trace = false, show_every = 10, extended_trace = true)) # CHANGED: g_tol to 1e-2 and iterations to 100 bcs of increased exceedance_prob simulations
+    Optim.Options(g_tol = 1e-2, iterations = 100, show_trace = trace, show_every = 20, extended_trace = true)) # CHANGED: g_tol to 1e-2 and iterations to 100 bcs of increased exceedance_prob simulations
   aic_mepd = 2*(3 + (loglik_cens(Optim.minimizer(opt_res), βhat, data, data_exc, dist, thresh) -dfmarg([βhat], data[exc_ind, :])))
   mepd[i,:] = [Optim.minimizer(opt_res)..., βhat, aic_mepd]
   
+  resultName = @sprintf("mepd_test%03.d.csv", i)
+  CSV.write(resultName, Tables.table([Optim.minimizer(opt_res)..., βhat, aic_mepd]'))
+
   ## Huser
   # try
     opt_res = optimize(x -> loglikhuser_cens(x, data_U, dist, 0.95), [log(1.0), 1.0, 1., 1.], NelderMead(), 
-      Optim.Options(iterations = 100, g_tol = 1e-2, 
-      show_trace = false, show_every = 20, extended_trace = true)) 
+      Optim.Options(iterations = 100, g_tol = 1e-2, show_trace = trace, show_every = 20, extended_trace = true)) 
     aic_huser = 2*(4 + loglikhuser_cens(Optim.minimizer(opt_res), data_U, dist, 0.95))
     huser[i,:] = [Optim.minimizer(opt_res)..., aic_huser]
   # catch e
   #   println(e)
   # end
+  resultName = @sprintf("huser_test%03.d.csv", i)
+  CSV.write(resultName, Tables.table([Optim.minimizer(opt_res)..., aic_huser]'))
 end
-using Dates; Dates.now()
 
 mean(mepd[:,1] .== 0.0)
 
-mean(mepd, dims = 1)
-mean(huser, dims = 1)
+CSV.write("mepd_$(dimension)_$(month(Dates.today()))_$(day(Dates.today())).csv", Tables.table(mepd))
+CSV.write("huser_$(dimension)_$(month(Dates.today()))_$(day(Dates.today())).csv", Tables.table(huser))
 
-using Tables
-CSV.write("mepd_d5_n200_beta04_la05_nu1_mepd.csv", Tables.table(mepd))
-CSV.write("huser_d5_n200_beta04_la05_nu1_mepd.csv", Tables.table(huser))
+# CSV.write("mepd_d10_n200_beta04_la1_nu1_mepd.csv", Tables.table(mepd))
+# CSV.write("huser_d10_n200_beta04_la1_nu1_mepd.csv", Tables.table(huser))
 
 

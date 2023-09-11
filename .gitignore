@@ -9,5 +9,7 @@ test.*
 .DS_store
 *.dat
 data_prep.R
-results
 testing_stuff.jl
+sim_results_mepd_dgp.R
+sim_results_huser_dgp.R
+sim_results.R

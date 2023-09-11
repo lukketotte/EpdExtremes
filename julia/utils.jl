@@ -1,6 +1,6 @@
 module Utils
 
-export cor_fun, cond_cor, dist_fun, same_vec, compute_I_nexc_nb_i, censoring, block_boot_sample
+export cor_fun, cond_cor, cond_cor_huser, dist_fun, same_vec, compute_I_nexc_nb_i, censoring, block_boot_sample
 
 using LinearAlgebra 
 
@@ -33,10 +33,14 @@ function cond_cor(param::AbstractVector{<:Real})
     #     return param[2] > 0 && param[2] < 2 && param[3] >= 0.01 && param[4] > 0.2
     # end
     if length(param) == 2
-        return param[2] > 0 && param[2] < 2
+        return param[2] > 0 && param[2] < 2 # for mepd with isotropic correlation function
     elseif length(param) == 4
-        return param[2] > 0 && param[2] < 2 && param[3] >= -pi/2 && param[3] <= pi/2 && param[4] > 0
+        return param[2] > 0 && param[2] < 2 && param[3] >= -pi/2 && param[3] <= pi/2 && param[4] > 0 # for mepd with ANisotropic correlation function
     end
+end
+
+function cond_cor_huser(param::AbstractVector{<:Real})
+    return param[2] > 0 && param[2] < 2 && param[3] >= 0.01 && param[4] > 0.2
 end
 
 dist_fun(coord_vec::AbstractVector{<:Real}) = permutedims(vec(permutedims(mapreduce(permutedims, vcat, vcat([coord_vec for i in eachindex(coord_vec)])))-mapreduce(permutedims, vcat, vcat([coord_vec for i in eachindex(coord_vec)]))))
