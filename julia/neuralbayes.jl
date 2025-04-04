@@ -54,10 +54,11 @@ network = DeepSet(ψ, ϕ)
 estimator = PointEstimator(network)
 
 m = 1000
-K = 2000
+K = 1000
 θ_train = sample(K)
 θ_val   = sample(K÷5)
 estimator = train(estimator, θ_train, θ_val, simulate, m = m, epochs = 100)
+
 
 θ_test = sample(2000)
 Z_test = simulate(θ_test, m)
